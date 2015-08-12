@@ -1,0 +1,110 @@
+body {
+  font-family: Helvetica, sans-serif;
+}
+
+#header h1 {
+  margin-bottom:5px;
+}
+
+#content {
+  font-size:80%;
+  padding-bottom:100px; /* can scroll past the program */
+}
+
+.box {
+  margin: 20px 5px;
+  padding: 5px;
+  border: 1px solid #000000;
+}
+
+.box_title .title {
+  margin:5px;
+  font-size:150%;
+}
+
+.box_content {
+  margin: 5px 10px;
+}
+
+.stacked-canvas {
+  /* border:1px solid #000000; */
+  position: absolute;
+  top:0px;
+  left:0px;
+  background: transparent;
+}
+.stacked-canvas-container {
+  height:100%;
+  width:100%;
+  position: relative;
+}
+
+
+/******  Shine ******/
+
+#shine_left {
+  float:left;
+  width:50%;
+  background: #FF8888;
+}
+
+#shine_left_canvas_container {
+  float:left;
+  background:#8888FF;
+}
+
+
+#shine_left_menu_container {
+  float:left;
+  width:50%;
+  background: #88FF88;
+}
+
+
+.clear {
+  clear:both;
+  line-height:0px;
+}
+
+/****** tabs ********/
+
+.tab {
+  width:100%;
+  display:inline-block;
+}
+
+.tab_links {
+  margin:0px;
+  padding:0px;
+}
+
+.tab_links:after {
+  display:block;
+  clear:both;
+  content:'';
+}
+
+.tab_links li {
+  margin:0px 5px;
+  float:left;
+  list-style:none;
+  /* border: 1px solid #000000; */
+}
+
+.tab_links li.active {
+  /* background:#0F0F0F */
+  border: 1px solid #000000;
+}
+
+.tab_content {
+  border: 1px solid #000000;
+  padding: 2px;
+}
+
+.tab {
+  display:none;
+}
+
+.tab.active {
+  display:block;
+}

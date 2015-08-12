@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+
+<title>Alden Walker - shine</title>
+<link rel='stylesheet' type='text/css' href='shine.css'>
+
+</head>
+
+<body onload='new ShineGui()'>
+
+<div id='header'>
+<h1>Shine</h1>
+Version 1.0
+</div>
+
+<div id='content'>
+
+<div class='box' id='box_credits'>
+<div class='box_title'><div class='title'>Credits</div></div>
+<div class='box_content'>
+Copyright 2015 by <a href='../index.html'>Alden Walker</a>.
+</div>
+</div>
+
+<div class='box' id='box_program'>
+<div class='box_title'><div class='title'>Shine</div></div>
+<div class='box_content'>
+
+<div id='shine_container'>
+
+<div id='shine_left'>
+
+<div id='shine_left_canvas_container'>
+<div class='stacked-canvas-container'>
+<canvas id='shine_left_canvas'></canvas>
+<canvas class='stacked-canvas' id='shine_left_canvas_overlay'></canvas>
+</div>
+</div>
+<br class='clear'>
+
+<div id='shine_left_menu_container'>
+
+<div class='tabs'>
+<ul class='tab_links'>
+  <li id='tab_file_link' class='active'><a href='javascript:show_tab("tab_file")'>File</a></li>
+  <li id='tab_draw_link'><a href='javascript:show_tab("tab_draw")'>Draw</a></li>
+</ul>
+<div class='tab_content'>
+  <div id='tab_file' class='tab active'>
+    <fieldset> 
+      <legend>Load</legend>
+      <input type='radio' name='tab_file_load_type' id='tab_file_load_type_preset' checked>Preset:
+         <select id='tab_file_load_preset'>
+         </select>
+      <hr>
+      <input type='radio' name='tab_file_load_type' id='tab_file_load_type_string'>String:
+         <input type='text' id='tab_file_load_string' size=10>
+      <hr>
+      <button type='button' id='tab_file_load_button' style='float:right;'>Load</button>
+    </fieldset>
+  </div>
+  <div id='tab_draw' class='tab'>
+    Draw tab
+  </div>
+</div>
+</div>
+
+</div> <!--left menu-->
+
+</div> <!--left-->
+
+<div class='shine_right'>
+right
+</div>
+
+
+<br class='clear'>
+</div> <!--shine container-->
+
+<br class='clear'>
+</div> <!--program container-->
+
+</div> <!--box content-->
+</div> <!--box-->
+
+
+
+</div> <!--content-->
+
+
+
+
+<script>  <!-- tab switching -->
+function show_tab(s) {
+  var new_active_tab = document.getElementById(s);
+  var old_active_tab = document.getElementsByClassName('tab active');
+  var old_active_tab_id = old_active_tab[0].id;
+  old_active_tab[0].className = 'tab';
+  new_active_tab.className = 'tab active';
+  
+  var new_active_tab_link = document.getElementById(s + '_link');
+  var old_active_tab_link = document.getElementById(old_active_tab_id + '_link');
+  old_active_tab_link.className = '';
+  new_active_tab_link.className = 'active';
+}
+</script>
+
+<!--<script src='decimal/decimal.min.js'></script>-->
+<script src='tri.js'></script>
+<script src='hyp.js'></script>
+<script src='shine.js'></script>
+
+</body>
+
+
+</html>
