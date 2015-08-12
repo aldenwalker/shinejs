@@ -55,6 +55,8 @@ ShineGui.prototype.create_fd = function() {
   this.fd.file_load_string = document.getElementById('tab_file_load_string');
   document.getElementById('tab_file_load_button').addEventListener('click', 
     (function() { this.load_fd(); show_tab('tab_draw'); }).bind(this));
+  
+  this.d3 = {};
 }
 
 /*****************************************************************************
@@ -385,6 +387,7 @@ ShineGui.prototype.load_fd = function() {
   }
   this.fd.view_trans = HyperbolicIsometry.identity();
   this.draw_fd();
+  this.load_3d();
 }
 
 /****************************************************************************
@@ -436,6 +439,29 @@ ShineGui.prototype.mouse_fd = function(evt) {
   this.redraw_fd();
   return false;
 }
+
+/****************************************************************************
+ * Load the 3d view
+ ****************************************************************************/
+ShineGui.prototype.load_3d = function() {
+  if (!this.fd.hasOwnProperty('triangulation')) return;
+  this.d3.embedded_triangulation = EmbeddedR3Triangulation.embed_triangulation(this.fd.triangulation);
+  console.log('Embedded 3D');
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
