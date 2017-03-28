@@ -1,0 +1,558 @@
+<html>
+<head> 
+
+<link rel='stylesheet' type='text/css' href='shine.css'>
+
+
+<title>Shine 2</title>
+
+
+</head>
+<body onload="new ShineGui()">
+
+<h1>Shine</h1>
+
+<div id='content'>
+
+<div class='box' id='credits'>
+<div class='box_title'>Credits  <button type='button' onclick="toggle_visible('credits')">&#8593;</button></div>
+<div class='box_content'>Copyright 2016 by <a href='index.html'>Alden Walker</a>. I found useful WebGL examples 
+<a href="http://blog.mayflower.de/4584-Playing-around-with-pixel-shaders-in-WebGL.html">here</a>
+and <a href="http://learningwebgl.com/blog/?page_id=1217">here</a>.</div>
+</div>
+
+<div class='box' id='quick-desc'>
+<div class='box_title'>Quick description <button type='button' onclick="toggle_visible('quick-desc')">&#8593;</button></div>
+<div class='box_content'>Shine draws 3D surfaces and curves on them
+</div>
+</div>
+
+<div class='box' id='desc'>
+<div class='box_title'>Full description <button type='button' onclick="toggle_visible('desc')">&#8595;</button></div>
+<div class='box_content' style='display:none;'>
+<h4>Navigation</h4>
+<p>ff</p>
+
+<h4>Function input</h4>
+<p>ff</p>
+
+<h4>Shine plotting</h4>
+<p>Shine uses WebGL, which may not be supported 
+in some mobile and old browsers.  It may also be slow, depending 
+on your graphics hardware.</p>
+
+
+</div>
+</div>
+
+<div class='box' id='examples'>
+<div class='box_title'>Examples <button type='button' onclick="toggle_visible('examples')">&#8595;</button></div>
+<div class='box_content' style='display:none;'>
+<h4>There are none yet</h4>
+Nope.
+</div>
+</div>
+
+
+
+
+<div class='box' id='program'>
+<div class='box_title'>Program<button type='button' onclick="toggle_visible('program')">&#8593;</button></div>
+<div class='box_content'>
+
+
+<div id='program-box'>
+
+
+<div class='boxleft' id='left_plot_div'>
+<div class='stacked-canvas-container'>
+<canvas id='left_gl_plot_canvas' class='stacked-canvas'>Error with canvas</canvas>
+<canvas id='left_plot_canvas' class='stacked-canvas'>Error with canvas</canvas>
+</div>
+</div>
+
+<div class='boxright' id='right_plot_div'>
+<div class='stacked-canvas-container'>
+<canvas id='right_gl_plot_canvas' class='stacked-canvas'>Error with canvas</canvas>
+<canvas id='right_plot_canvas' class='stacked-canvas'>Error with canvas</canvas>
+</div>
+</div>
+<br class='clear'>
+
+
+<div class='boxleft' id='left_control_div'>
+<div class='input'>
+<div class='input_label'><h3>Plot 1:</h3></div>
+</div>
+<br class='clear'>
+
+<div class='input'>
+<div class='input_label'>Mouse location:</div>
+<div class='input_input'> <span id='left_mouse_location'></span>
+</div>
+</div>
+<br class='clear'>
+
+<div class='input'>
+<div class='input_label'>Julia set:</div>
+<div class='input_input'> <input type='checkbox' id='left_control_julia' checked>
+</div>
+</div>
+<br class='clear'>
+
+<div class='input'>
+<div class='input_label'>Julia shading:</div>
+<div class='input_input'><input type="range" min="0" max="2" value="1" step="0.1" id='left_control_julia_shading'/>
+</div>
+</div>
+<br class='clear'>
+
+<div class='input'>
+<div class='input_label'>Show roots:</div>
+<div class='input_input'> <input type='checkbox' id='left_control_roots' checked>
+</div>
+</div>
+<br class='clear'>
+
+<div class='input'>
+<div class='input_label'>Show critical points:</div>
+<div class='input_input'> <input type='checkbox' id='left_control_cpoints' checked>
+</div>
+</div>
+<br class='clear'>
+
+<div class='input'>
+<div class='input_label'>Show critical point images:</div>
+<div class='input_input'> <input type='checkbox' id='left_control_cpoint_images' checked>
+</div>
+</div>
+<br class='clear'>
+
+<div class='input'>
+<div class='input_label'>Show K:</div>
+<div class='input_input'> <input type='checkbox' id='left_control_K' checked>
+</div>
+</div>
+<br class='clear'>
+
+<!--
+<div class='input'>
+<div class='input_label'>Derivative roots:</div>
+<div class='input_input'> <input type='checkbox' id='left_control_droots'>
+</div>
+</div>
+<br class='clear'>
+-->
+
+<div class='input'>
+<div class='input_label'>Axes:</div>
+<div class='input_input'> <input type='checkbox' id='left_control_axes' checked>
+</div>
+</div>
+<br class='clear'>
+
+<div class='input'>
+<div class='input_label'><input type='radio' name='left_control_radio' id='left_control_radio_kf' checked>Show keyframe:</div> 
+<div class='input_input'><span id='left_control_kf_label'>0</span><input type="range" min="1" max="15" value="0" id='left_control_kf'/>
+</div>
+</div>
+<br class='clear'>
+
+<div class='input'>
+<div class='input_label'><input type='radio' name='left_control_radio' id='left_control_radio_f' >Show interpolated frame:</div> 
+<div class='input_input'><span id='left_control_f_label'>0</span><input type="range" min="1" max="15" value="0" id='left_control_f'/>
+</div>
+</div>
+<br class='clear'>
+
+<div class='input'>
+<div class='input_label'>K:</div> 
+<div class='input_input'><span id='left_control_K_label'>0</span>
+</div>
+</div>
+<br class='clear'>
+
+<div class='input'>
+<div class='input_label'>Roots:</div> 
+<div class='input_input'><span id='left_control_roots_label'>0</span>
+</div>
+</div>
+<br class='clear'>
+
+</div>
+
+
+<div class='boxright' id='right_control_div'>
+<div class='input'>
+<div class='input_label'><h3>Plot 2:</h3></div>
+</div>
+<br class='clear'>
+
+<div class='input'>
+<div class='input_label'>Mouse location:</div>
+<div class='input_input'> <span id='right_mouse_location'></span>
+</div>
+</div>
+<br class='clear'>
+
+<div class='input'>
+<div class='input_label'>Julia set:</div>
+<div class='input_input'> <input type='checkbox' id='right_control_julia' checked>
+</div>
+</div>
+<br class='clear'>
+
+<div class='input'>
+<div class='input_label'>Julia shading:</div>
+<div class='input_input'><input type="range" min="0" max="2" value="1" step="0.1" id='right_control_julia_shading'/>
+</div>
+</div>
+<br class='clear'>
+
+<div class='input'>
+<div class='input_label'>Show roots:</div>
+<div class='input_input'> <input type='checkbox' id='right_control_roots' checked>
+</div>
+</div>
+<br class='clear'>
+
+<div class='input'>
+<div class='input_label'>Show critical points:</div>
+<div class='input_input'> <input type='checkbox' id='right_control_cpoints' checked>
+</div>
+</div>
+<br class='clear'>
+
+<div class='input'>
+<div class='input_label'>Show critical point images:</div>
+<div class='input_input'> <input type='checkbox' id='right_control_cpoint_images' checked>
+</div>
+</div>
+<br class='clear'>
+
+<div class='input'>
+<div class='input_label'>Show K:</div>
+<div class='input_input'> <input type='checkbox' id='right_control_K' checked>
+</div>
+</div>
+<br class='clear'>
+
+<!--
+<div class='input'>
+<div class='input_label'>Derivative roots:</div>
+<div class='input_input'> <input type='checkbox' id='right_control_droots'>
+</div>
+</div>
+<br class='clear'>
+-->
+
+<div class='input'>
+<div class='input_label'>Axes:</div>
+<div class='input_input'> <input type='checkbox' id='right_control_axes' checked>
+</div>
+</div>
+<br class='clear'>
+
+
+<div class='input'>
+<div class='input_label'><input type='radio' name='right_control_radio' id='right_control_radio_kf' checked>Show keyframe:</div> 
+<div class='input_input'><span id='right_control_kf_label'>0</span><input type="range" min="1" max="15" value="0" id='right_control_kf'/>
+</div>
+</div>
+<br class='clear'>
+
+<div class='input'>
+<div class='input_label'><input type='radio' name='right_control_radio' id='right_control_radio_f' >Show interpolated frame:</div> 
+<div class='input_input'><span id='right_control_f_label'>0</span><input type="range" min="1" max="15" value="0" id='right_control_f'/>
+</div>
+</div>
+<br class='clear'>
+
+<div class='input'>
+<div class='input_label'>K:</div> 
+<div class='input_input'><span id='right_control_K_label'>0</span>
+</div>
+</div>
+<br class='clear'>
+
+<div class='input'>
+<div class='input_label'>Roots:</div> 
+<div class='input_input'><span id='right_control_roots_label'>0</span>
+</div>
+</div>
+<br class='clear'>
+
+
+</div>
+<br class='clear'>
+
+<hr>
+
+
+<div class='boxleft' id='global_control'>
+
+<div class='input'>
+<div class='input_label'><h3>Global status:</h3></div>
+</div>
+<br class='clear'>
+
+<div class='input'>
+<div class='input_label'>Synchronize plot frames</div>
+<div class='input_input'><input type='checkbox' id='global_control_synchronize' checked>
+</div>
+</div>
+<br class='clear'>
+
+<div class='input'>
+<div class='input_label'>Keyframes:</div>
+<div class='input_input'><span id='global_control_nframes_label'></span>
+</div>
+</div>
+<br class='clear'>
+
+<div class='input'>
+<div class='input_label'>Braid:</div>
+<div class='input_input'><span id='global_control_braid_label'></span>
+</div>
+</div>
+<br class='clear'>
+
+
+</div>
+
+<br class='clear'>
+
+
+
+
+
+<hr>
+
+<div class='boxleft' id='reset_controls'>
+
+<div class='input'>
+<div class='input_label'><h3>New path:</h3></div>
+</div>
+<br class='clear'>
+
+<div class='input'>
+<div class='input_label'>New path from braid:</div>
+<div class='input_input'>Roots:<input type='text' id='frame_control_braid_numroots' value='3' size=3>Braid:<input type='text' id='frame_control_braid_braid' value='0-1,2-1' size=20>Keyframes per swap:<input type='text' id='frame_control_braid_keyframes' value='5' size=3><button type='button' id='frame_control_braid_go'>Go</button>
+</div>
+</div>
+<br class='clear'>
+
+<div class='input'>
+<div class='input_label'>New single frame:</div>
+<div class='input_input'>Roots:<input type='text' id='frame_control_single_numroots' value='3' size=3><button type='button' id='frame_control_single_go'>Go</button>
+</div>
+</div>
+<br class='clear'>
+
+
+
+</div>
+
+
+
+</div> <!--program box-->
+
+<br class='clear'>
+
+</div> <!--page box-->
+
+<br class='clear'>
+
+</div> <!--textbox-->
+
+
+</div> <!--content-->
+
+
+<!-- this is a tiny separate javascript for page layout -->
+<script>
+"use strict";
+function toggle_visible(x) {
+  var elem = document.getElementById(x);
+  var title_child = elem.children[0];
+  var title_button_child = title_child.getElementsByTagName('button')[0];
+  var content_child = elem.children[1];
+  if (content_child.style.display != 'none') {
+    content_child.style.display = 'none';
+    title_button_child.innerHTML = '&#8595';
+    //console.log(title_button_child);
+  } else {
+    content_child.style.display = 'block';
+    title_button_child.innerHTML = '&#8593';
+  }
+}
+</script>
+
+<script src='R2.js'></script>
+<script src='shine.js'></script>
+
+<script id='vertex_shader' type='x-shader/x-vertex'>
+attribute vec2 a_vert_pos;
+varying vec2 v_vert_pos;
+void main() {
+  v_vert_pos = a_vert_pos;
+  gl_Position = vec4( a_vert_pos, 0, 1 );
+}
+</script>
+
+<script id='fragment_shader' type='x-shader/x-fragment'>
+precision mediump float;
+varying vec2 v_vert_pos;
+uniform vec2 plot_ul;
+uniform float plot_width;
+uniform bool do_color;
+uniform float shading;
+
+vec2 cpx_mul( vec2 a, vec2 b ) {
+  return vec2( a.x*b.x - a.y*b.y, 
+               a.x*b.y + a.y*b.x );
+}
+
+vec2 cpx_div( vec2 a, vec2 b ) {
+  float den = b.x*b.x + b.y*b.y;
+  return vec2( (a.x*b.x + a.y*b.y)/den,
+               (a.y*b.x - a.x*b.y)/den );
+}
+
+void main() {
+  float scaling = plot_width/2.0;
+  vec2 my_cpx = vec2( plot_ul.x + (v_vert_pos.x + 1.0)*scaling,
+                      plot_ul.y - (1.0 - v_vert_pos.y)*scaling );
+  bool in_julia = true;
+  vec2 z = my_cpx;
+  float steps = 0.0;
+  for ( int i=0; i<100; i++) {
+    z = (DYNAMICALLY_SET_FUNCTION);
+    if (sqrt(z.x*z.x + z.y*z.y) > 1.0e6) {
+      in_julia = false;
+      break;
+    }
+    steps += 1.0;
+  }
+  if (in_julia) {
+    gl_FragColor = vec4( 0.0, 0.0, 0.0, 1.0);
+  } else {
+    if (do_color) {
+      steps = steps / (4.0*shading);
+      //float scaled_others = 1.0 - pow(steps, 0.2);
+      float scaled_others = pow(steps, 0.4);
+      gl_FragColor = vec4( scaled_others, scaled_others, 1.0, 1.0 );
+    } else {
+      gl_FragColor = vec4( 1.0, 1.0, 1.0, 1.0 );
+    }
+  }
+
+}
+</script>
+
+<script id='fragment_shader_debug' type='x-shader/x-fragment'>
+precision mediump float;
+varying vec2 v_vert_pos;
+uniform vec2 plot_ul;
+uniform float plot_width;
+uniform bool do_color;
+uniform float shading;
+
+vec2 cpx_mul( vec2 a, vec2 b ) {
+  return vec2( a.x*b.x - a.y*b.y, 
+               a.x*b.y + a.y*b.x );
+}
+
+vec2 cpx_div( vec2 a, vec2 b ) {
+  float den = b.x*b.x + b.y*b.y;
+  return vec2( (a.x*b.x + a.y*b.y)/den,
+               (a.y*b.x - a.x*b.y)/den );
+}
+
+void main() {
+  float scaling = plot_width/2.0;
+  vec2 my_cpx = vec2( plot_ul.x + (v_vert_pos.x + 1.0)*scaling,
+                      plot_ul.y - (1.0 - v_vert_pos.y)*scaling );
+  bool in_julia = true;
+  vec2 z = my_cpx;
+  float steps = 0.0;
+  for ( int i=0; i<3; i++) {
+    z = (DYNAMICALLY_SET_FUNCTION);
+  }
+  if (sqrt(z.x*z.x + z.y*z.y) > 1.0e6) {
+    gl_FragColor = vec4( 1.0, 1.0, 1.0, 1.0);
+  } else {
+    gl_FragColor = vec4( 0.0, 0.0, 1.0, 1.0);
+  }
+}
+</script>
+
+
+<script id='fragment_shader_escaperate' type='x-shader/x-fragment'>
+precision highp float;
+varying vec2 v_vert_pos;
+uniform vec2 plot_ul;
+uniform float plot_width;
+uniform bool do_color;
+uniform float shading;
+uniform float degree;
+uniform float basin_bound;
+
+vec2 cpx_mul( vec2 a, vec2 b ) {
+  return vec2( a.x*b.x - a.y*b.y, 
+               a.x*b.y + a.y*b.x );
+}
+
+vec2 cpx_div( vec2 a, vec2 b ) {
+  float den = b.x*b.x + b.y*b.y;
+  return vec2( (a.x*b.x + a.y*b.y)/den,
+               (a.y*b.x - a.x*b.y)/den );
+}
+
+void main() {
+  float scaling = plot_width/2.0;
+  vec2 my_cpx = vec2( plot_ul.x + (v_vert_pos.x + 1.0)*scaling,
+                      plot_ul.y - (1.0 - v_vert_pos.y)*scaling );
+  bool in_julia = true;
+  float z_max = pow(2.0, 60.0/degree);
+  z_max = (z_max > 1.0e10 ? 1.0e10 : z_max);
+  vec2 z = my_cpx;
+  float basin_iters = 0.0;
+  float lz;
+  for (int iters=0; iters<8; iters++) {
+    z = (DYNAMICALLY_SET_FUNCTION);
+    lz = length(z);
+    if (lz > basin_bound) {
+      in_julia = false;
+    }
+    if (lz > z_max) {
+      break;
+    }
+    basin_iters += 1.0;
+  }
+  if (!in_julia) {
+    float den = pow(degree, basin_iters);
+    float logx = log(lz);
+    float num = 0.5*(logx + abs(logx));
+    float escrate = num/den;
+    float scaled_er = shading*escrate;
+    gl_FragColor = vec4( scaled_er, scaled_er, 1.0, 1.0 );
+    //gl_FragColor = vec4( 0.0, 0.0, 0.0, 1.0 );
+  } else {
+    gl_FragColor = vec4( 0.0, 0.0, 0.0, 1.0 );
+  }
+
+}
+</script>
+
+
+
+
+
+</body>
+</html>
+
+
+
+
+
