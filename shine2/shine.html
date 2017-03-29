@@ -60,6 +60,30 @@ Nope.
 <div class='box_title'>Program<button type='button' onclick="toggle_visible('program')">&#8593;</button></div>
 <div class='box_content'>
 
+<div class='box' id='surface_input'>
+<div class='box_title'>Surface input<button type='button' onclick="toggle_visible('surface_input')">&#8593;</button></div>
+<div class='box_content'>
+
+<div id='si_box'>
+
+<div class='boxleft' id='si_div'>
+<div class='stacked-canvas-container'>
+<canvas id='si_plot_canvas' class='stacked-canvas'>Error with canvas</canvas>
+</div>
+</div>
+<br class='clear'>
+
+</div>
+
+</div>
+</div>
+
+
+
+<div class='box' id='surface_display'>
+<div class='box_title'>Surface display<button type='button' onclick="toggle_visible('surface_display')">&#8593;</button></div>
+<div class='box_content'>
+
 
 <div id='program-box'>
 
@@ -81,6 +105,7 @@ Nope.
 
 
 <div class='boxleft' id='left_control_div'>
+
 <div class='input'>
 <div class='input_label'><h3>Plot 1:</h3></div>
 </div>
@@ -93,96 +118,11 @@ Nope.
 </div>
 <br class='clear'>
 
-<div class='input'>
-<div class='input_label'>Julia set:</div>
-<div class='input_input'> <input type='checkbox' id='left_control_julia' checked>
-</div>
-</div>
-<br class='clear'>
-
-<div class='input'>
-<div class='input_label'>Julia shading:</div>
-<div class='input_input'><input type="range" min="0" max="2" value="1" step="0.1" id='left_control_julia_shading'/>
-</div>
-</div>
-<br class='clear'>
-
-<div class='input'>
-<div class='input_label'>Show roots:</div>
-<div class='input_input'> <input type='checkbox' id='left_control_roots' checked>
-</div>
-</div>
-<br class='clear'>
-
-<div class='input'>
-<div class='input_label'>Show critical points:</div>
-<div class='input_input'> <input type='checkbox' id='left_control_cpoints' checked>
-</div>
-</div>
-<br class='clear'>
-
-<div class='input'>
-<div class='input_label'>Show critical point images:</div>
-<div class='input_input'> <input type='checkbox' id='left_control_cpoint_images' checked>
-</div>
-</div>
-<br class='clear'>
-
-<div class='input'>
-<div class='input_label'>Show K:</div>
-<div class='input_input'> <input type='checkbox' id='left_control_K' checked>
-</div>
-</div>
-<br class='clear'>
-
-<!--
-<div class='input'>
-<div class='input_label'>Derivative roots:</div>
-<div class='input_input'> <input type='checkbox' id='left_control_droots'>
-</div>
-</div>
-<br class='clear'>
--->
-
-<div class='input'>
-<div class='input_label'>Axes:</div>
-<div class='input_input'> <input type='checkbox' id='left_control_axes' checked>
-</div>
-</div>
-<br class='clear'>
-
-<div class='input'>
-<div class='input_label'><input type='radio' name='left_control_radio' id='left_control_radio_kf' checked>Show keyframe:</div> 
-<div class='input_input'><span id='left_control_kf_label'>0</span><input type="range" min="1" max="15" value="0" id='left_control_kf'/>
-</div>
-</div>
-<br class='clear'>
-
-<div class='input'>
-<div class='input_label'><input type='radio' name='left_control_radio' id='left_control_radio_f' >Show interpolated frame:</div> 
-<div class='input_input'><span id='left_control_f_label'>0</span><input type="range" min="1" max="15" value="0" id='left_control_f'/>
-</div>
-</div>
-<br class='clear'>
-
-<div class='input'>
-<div class='input_label'>K:</div> 
-<div class='input_input'><span id='left_control_K_label'>0</span>
-</div>
-</div>
-<br class='clear'>
-
-<div class='input'>
-<div class='input_label'>Roots:</div> 
-<div class='input_input'><span id='left_control_roots_label'>0</span>
-</div>
-</div>
-<br class='clear'>
-
 </div>
 
 
 <div class='boxright' id='right_control_div'>
+
 <div class='input'>
 <div class='input_label'><h3>Plot 2:</h3></div>
 </div>
@@ -202,156 +142,14 @@ Nope.
 </div>
 <br class='clear'>
 
-<div class='input'>
-<div class='input_label'>Julia shading:</div>
-<div class='input_input'><input type="range" min="0" max="2" value="1" step="0.1" id='right_control_julia_shading'/>
-</div>
-</div>
-<br class='clear'>
-
-<div class='input'>
-<div class='input_label'>Show roots:</div>
-<div class='input_input'> <input type='checkbox' id='right_control_roots' checked>
-</div>
-</div>
-<br class='clear'>
-
-<div class='input'>
-<div class='input_label'>Show critical points:</div>
-<div class='input_input'> <input type='checkbox' id='right_control_cpoints' checked>
-</div>
-</div>
-<br class='clear'>
-
-<div class='input'>
-<div class='input_label'>Show critical point images:</div>
-<div class='input_input'> <input type='checkbox' id='right_control_cpoint_images' checked>
-</div>
-</div>
-<br class='clear'>
-
-<div class='input'>
-<div class='input_label'>Show K:</div>
-<div class='input_input'> <input type='checkbox' id='right_control_K' checked>
-</div>
-</div>
-<br class='clear'>
-
-<!--
-<div class='input'>
-<div class='input_label'>Derivative roots:</div>
-<div class='input_input'> <input type='checkbox' id='right_control_droots'>
-</div>
-</div>
-<br class='clear'>
--->
-
-<div class='input'>
-<div class='input_label'>Axes:</div>
-<div class='input_input'> <input type='checkbox' id='right_control_axes' checked>
-</div>
-</div>
-<br class='clear'>
-
-
-<div class='input'>
-<div class='input_label'><input type='radio' name='right_control_radio' id='right_control_radio_kf' checked>Show keyframe:</div> 
-<div class='input_input'><span id='right_control_kf_label'>0</span><input type="range" min="1" max="15" value="0" id='right_control_kf'/>
-</div>
-</div>
-<br class='clear'>
-
-<div class='input'>
-<div class='input_label'><input type='radio' name='right_control_radio' id='right_control_radio_f' >Show interpolated frame:</div> 
-<div class='input_input'><span id='right_control_f_label'>0</span><input type="range" min="1" max="15" value="0" id='right_control_f'/>
-</div>
-</div>
-<br class='clear'>
-
-<div class='input'>
-<div class='input_label'>K:</div> 
-<div class='input_input'><span id='right_control_K_label'>0</span>
-</div>
-</div>
-<br class='clear'>
-
-<div class='input'>
-<div class='input_label'>Roots:</div> 
-<div class='input_input'><span id='right_control_roots_label'>0</span>
-</div>
-</div>
-<br class='clear'>
-
-
-</div>
-<br class='clear'>
-
-<hr>
-
-
-<div class='boxleft' id='global_control'>
-
-<div class='input'>
-<div class='input_label'><h3>Global status:</h3></div>
-</div>
-<br class='clear'>
-
-<div class='input'>
-<div class='input_label'>Synchronize plot frames</div>
-<div class='input_input'><input type='checkbox' id='global_control_synchronize' checked>
-</div>
-</div>
-<br class='clear'>
-
-<div class='input'>
-<div class='input_label'>Keyframes:</div>
-<div class='input_input'><span id='global_control_nframes_label'></span>
-</div>
-</div>
-<br class='clear'>
-
-<div class='input'>
-<div class='input_label'>Braid:</div>
-<div class='input_input'><span id='global_control_braid_label'></span>
-</div>
-</div>
-<br class='clear'>
-
-
-</div>
-
-<br class='clear'>
-
-
-
-
-
-<hr>
-
-<div class='boxleft' id='reset_controls'>
-
-<div class='input'>
-<div class='input_label'><h3>New path:</h3></div>
-</div>
-<br class='clear'>
-
-<div class='input'>
-<div class='input_label'>New path from braid:</div>
-<div class='input_input'>Roots:<input type='text' id='frame_control_braid_numroots' value='3' size=3>Braid:<input type='text' id='frame_control_braid_braid' value='0-1,2-1' size=20>Keyframes per swap:<input type='text' id='frame_control_braid_keyframes' value='5' size=3><button type='button' id='frame_control_braid_go'>Go</button>
-</div>
-</div>
-<br class='clear'>
-
-<div class='input'>
-<div class='input_label'>New single frame:</div>
-<div class='input_input'>Roots:<input type='text' id='frame_control_single_numroots' value='3' size=3><button type='button' id='frame_control_single_go'>Go</button>
-</div>
 </div>
 <br class='clear'>
 
 
 
-</div>
+
+
+
 
 
 
@@ -359,12 +157,13 @@ Nope.
 
 <br class='clear'>
 
-</div> <!--page box-->
+</div> <!-- surface display box -->
+</div>
 
 <br class='clear'>
 
-</div> <!--textbox-->
-
+</div> <!-- program main box-->
+</div>
 
 </div> <!--content-->
 
