@@ -1,5 +1,5 @@
 function EmbeddedR3Triangulation(T, vert_locs) {
-  self.T = T;
+  self.T = T; 
   self.vertex_locations = vert_locs;
 }
 
