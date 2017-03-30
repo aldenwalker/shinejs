@@ -3,6 +3,10 @@ function R2Point(x,y) {
   this.y = y;
 }
 
+R2Point.prototype.add = function(p) {
+  return new R2Point(this.x + p.x, this.y + p.y);
+}
+
 R2Point.prototype.sub = function(p) {
   return new R2Point(this.x - p.x, this.y - p.y);
 }
@@ -11,7 +15,13 @@ R2Point.prototype.angle = function() {
   return Math.atan2(this.y, this.x);
 }
 
+R2Point.prototype.scalar_mul = function(s) {
+  return new R2Point(s*this.x, s*this.y);
+}
 
+R2Point.prototype.round = function() {
+  return new R2Point(Math.round(this.x), Math.round(this.y));
+}
 
 
 function R2Graph() {

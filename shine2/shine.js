@@ -21,9 +21,14 @@ function ShineGui() {
                   'ul': new R2Point(-3, 3),
                   'width': 6,
                   'scale_to_pixels':-1,
+                  'near_integer': false,
                   'div': document.getElementById('si_div'),
                   'dragging_plot': false,
                   'graph': new R2Graph()};
+  this.si_plot.canvas.addEventListener('mousedown', this.si_plot_mouse.bind(this));
+  this.si_plot.canvas.addEventListener('mouseup', this.si_plot_mouse.bind(this));
+  this.si_plot.canvas.addEventListener('mousemove', this.si_plot_mouse.bind(this));
+  this.si_plot.canvas.addEventListener('mousewheel', this.si_plot_mouse.bind(this));
   this.si_plot.CC = this.si_plot.canvas.getContext('2d');
 
   this.left_plot = {'canvas': document.getElementById('left_plot_canvas'),
@@ -118,7 +123,7 @@ ShineGui.prototype.pixel_to_R2 = function(X, p) {
                       X.ul.y - (p.y / X.scale_to_pixels) );
 }
 
-ShineGui.prototype.complex_to_R2 = function(X, c) {
+ShineGui.prototype.R2_to_pixel = function(X, c) {
   return new Pixel( (c.x - X.ul.x) * X.scale_to_pixels,
                     -(c.y - X.ul.y) * X.scale_to_pixels );
 }
@@ -131,15 +136,93 @@ ShineGui.prototype.redraw_si_plot = function() {
   sip.CC.clearRect(0,0,sip.canvas.width,sip.canvas.height);
 
   //Draw a dot on every integer point
-  sip.CC.beginPath();
-  sip.CC.arc(20, 70, 1, 0, 2*Math.PI);
-  sip.CC.fill();
-  sip.CC.strokeStyle = '#000000';
-  sip.CC.beginPath();
-  sip.CC.moveTo( 20, 20 );
-  sip.CC.lineTo( 40, 50 );
-  sip.CC.stroke();
+  //Get the floor of the ul
+  var ul_floor = new R2Point( Math.floor(sip.ul.x), Math.floor(sip.ul.y) );
+  var lr_floor = new R2Point( Math.floor(sip.ul.x + sip.width), Math.floor(sip.ul.y - sip.width)-1 );
+  sip.CC.fillStyle = '#000000';
+  for (var x=ul_floor.x; x<=lr_floor.x; x++) {
+    for (var y=ul_floor.y; y>=lr_floor.y; y--) {
+      var p = this.R2_to_pixel(sip, new R2Point(x,y));
+      sip.CC.beginPath();
+      sip.CC.moveTo( p.x, p.y );
+      sip.CC.arc( p.x, p.y, 2, 0, 2*Math.PI);
+      sip.CC.fill();
+    }
+  }
+
+  //Draw the nearest integer, if it exists
+  if (sip.near_integer != false) {
+    sip.CC.fillStyle = 'rgba(0,0,0,0.3)';
+    var p = this.R2_to_pixel(sip, sip.near_integer);
+    sip.CC.beginPath();
+    sip.CC.moveTo( p.x, p.y );
+    sip.CC.arc( p.x, p.y, 10, 0, 2*Math.PI);
+    sip.CC.fill();
+  }
 }
+
+
+ShineGui.prototype.si_plot_mouse = function(evt) {
+  var sip = this.si_plot;
+  var canvas_rect = sip.canvas.getBoundingClientRect();
+  var mouse_p_x = evt.clientX - canvas_rect.left;
+  var mouse_p_y = evt.clientY - canvas_rect.top;
+  if (evt.type == 'mousemove' && !sip.dragging_plot) {
+    var mouse_real = this.pixel_to_R2(sip, new R2Point(mouse_p_x, mouse_p_y));
+    var mouse_rounded = mouse_real.round();
+    if (Math.abs(mouse_rounded.x-mouse_real.x) < 0.25 && Math.abs(mouse_rounded.y-mouse_real.y) < 0.25) {
+      sip.near_integer = mouse_rounded;
+    } else {
+      sip.near_integer = false;
+    }
+    this.redraw_si_plot();
+    return;
+  }
+  if (evt.type == 'mousedown') {
+    if (evt.button == 0) {
+      sip.dragging_plot = true;
+      sip.dragging_start = [mouse_p_x, mouse_p_y];
+      sip.dragging_root = new R2Point(sip.ul.x, sip.ul.y);
+      return;
+    }
+  } else if (evt.type == 'mouseup') {
+    if (evt.button == 0) {
+      sip.dragging_plot = false;
+    }
+    return;
+  }
+  //if we are dragging the plot, and we got a mousemove, 
+  //adjust the plot location as appropriate
+  if (evt.type == 'mousemove' && sip.dragging_plot) {
+    var drag_pixels_x = mouse_p_x - sip.dragging_start[0];
+    var drag_pixels_y = mouse_p_y - sip.dragging_start[1];
+    var drag_real = [drag_pixels_x / sip.scale_to_pixels,
+                     -drag_pixels_y / sip.scale_to_pixels];
+    sip.ul.x = sip.dragging_root.x - drag_real[0];
+    sip.ul.y = sip.dragging_root.y - drag_real[1];
+  }
+  
+  //If we got a mouse move, we need to zoom
+  if (evt.type == 'mousewheel') {
+    var mouse_real = this.pixel_to_R2(sip, new R2Point(mouse_p_x, mouse_p_y));
+    var diff = sip.ul.sub(mouse_real);
+    var factor = (evt.wheelDelta < 0 ? 1/0.95 : 0.95);
+    var new_diff = diff.scalar_mul( factor );
+    sip.ul = mouse_real.add(new_diff);
+    sip.width *= factor;
+    sip.scale_to_pixels = sip.canvas.width / sip.width;
+    evt.preventDefault();
+  }
+  
+  if (sip.dragging_plot || evt.type == 'mousewheel') {
+    this.redraw_si_plot();
+  }
+}
+
+
+
+
+
 
 ShineGui.prototype.redraw_left_plot = function() {
   var sip = this.left_plot;
