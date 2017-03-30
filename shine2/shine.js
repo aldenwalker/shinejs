@@ -21,7 +21,8 @@ function ShineGui() {
                   'ul': new R2Point(-3, 3),
                   'width': 6,
                   'scale_to_pixels':-1,
-                  'near_integer': false,
+                  'near_integer': undefined,
+                  'selected_vertex': undefined,
                   'div': document.getElementById('si_div'),
                   'dragging_plot': false,
                   'graph': new R2Graph()};
@@ -29,6 +30,7 @@ function ShineGui() {
   this.si_plot.canvas.addEventListener('mouseup', this.si_plot_mouse.bind(this));
   this.si_plot.canvas.addEventListener('mousemove', this.si_plot_mouse.bind(this));
   this.si_plot.canvas.addEventListener('mousewheel', this.si_plot_mouse.bind(this));
+  this.si_plot.canvas.addEventListener('DOMMouseScroll', this.si_plot_mouse.bind(this));
   this.si_plot.CC = this.si_plot.canvas.getContext('2d');
 
   this.left_plot = {'canvas': document.getElementById('left_plot_canvas'),
@@ -145,19 +147,43 @@ ShineGui.prototype.redraw_si_plot = function() {
       var p = this.R2_to_pixel(sip, new R2Point(x,y));
       sip.CC.beginPath();
       sip.CC.moveTo( p.x, p.y );
-      sip.CC.arc( p.x, p.y, 2, 0, 2*Math.PI);
+      sip.CC.arc( p.x, p.y, 1, 0, 2*Math.PI);
       sip.CC.fill();
     }
   }
+  
+  //Draw the graph so far
+  //console.log('Drawing graph:', sip.graph);
+  sip.CC.strokeStyle = '#000000';
+  sip.CC.lineWidth = 3;
+  for (var i in sip.graph.edges) {
+    var e = sip.graph.edges[i];
+    var v1p = this.R2_to_pixel(sip, sip.graph.vertices[e[0]].coords);
+    var v2p = this.R2_to_pixel(sip, sip.graph.vertices[e[1]].coords);
+    sip.CC.beginPath();
+    sip.CC.moveTo( v1p.x, v1p.y );
+    sip.CC.lineTo( v2p.x, v2p.y );
+    sip.CC.stroke();
+  }
+  for (var i in sip.graph.vertices) {
+    sip.CC.fillStyle = (sip.selected_vertex == i ? '#FF0000' : '#000000');
+    var vp = this.R2_to_pixel(sip, sip.graph.vertices[i].coords);
+    sip.CC.beginPath();
+    sip.CC.moveTo( vp.x, vp.y );
+    sip.CC.arc( vp.x, vp.y, 10, 0, 2*Math.PI);
+    sip.CC.fill();
+    //console.log('Drew vertex at', sip.graph.vertices[i].coords.x, sip.graph.vertices[i].coords.y);
+  }
 
   //Draw the nearest integer, if it exists
-  if (sip.near_integer != false) {
-    sip.CC.fillStyle = 'rgba(0,0,0,0.3)';
+  if (sip.near_integer != undefined) {
+    sip.CC.fillStyle = (sip.near_integer.as_array() in sip.graph.vertex_indices ? 'rgba(1,0,0,0.3)' : 'rgba(0,0,0,0.3)');
     var p = this.R2_to_pixel(sip, sip.near_integer);
     sip.CC.beginPath();
     sip.CC.moveTo( p.x, p.y );
     sip.CC.arc( p.x, p.y, 10, 0, 2*Math.PI);
     sip.CC.fill();
+    //console.log('drew near integer at', sip.near_integer.x, sip.near_integer.y);
   }
 }
 
@@ -170,24 +196,52 @@ ShineGui.prototype.si_plot_mouse = function(evt) {
   if (evt.type == 'mousemove' && !sip.dragging_plot) {
     var mouse_real = this.pixel_to_R2(sip, new R2Point(mouse_p_x, mouse_p_y));
     var mouse_rounded = mouse_real.round();
+    var old_near_integer = sip.near_integer;
     if (Math.abs(mouse_rounded.x-mouse_real.x) < 0.25 && Math.abs(mouse_rounded.y-mouse_real.y) < 0.25) {
       sip.near_integer = mouse_rounded;
     } else {
-      sip.near_integer = false;
+      sip.near_integer = undefined;
     }
-    this.redraw_si_plot();
+    if (old_near_integer == undefined || sip.near_integer == undefined) {
+      if (old_near_integer != sip.near_integer) {
+        this.redraw_si_plot();
+      }
+    } else if (!old_near_integer.equal(sip.near_integer)) {
+      this.redraw_si_plot();
+    }
     return;
   }
   if (evt.type == 'mousedown') {
-    if (evt.button == 0) {
-      sip.dragging_plot = true;
-      sip.dragging_start = [mouse_p_x, mouse_p_y];
-      sip.dragging_root = new R2Point(sip.ul.x, sip.ul.y);
-      return;
-    }
+    if (evt.button != 0) return ;
+    sip.dragging_plot = true;
+    sip.dragging_start = [mouse_p_x, mouse_p_y];
+    sip.dragging_root = new R2Point(sip.ul.x, sip.ul.y);
+    return;
   } else if (evt.type == 'mouseup') {
-    if (evt.button == 0) {
-      sip.dragging_plot = false;
+    if (evt.button != 0) return;
+    sip.dragging_plot = false;
+    if (sip.near_integer != undefined) {
+      var near_vi = (sip.near_integer.as_array() in sip.graph.vertex_indices ? sip.graph.vertex_indices[sip.near_integer.as_array()] : undefined);
+      //console.log('Found near_vi', near_vi, 'from', sip.near_integer.x, sip.near_integer.y);
+      var created = false;
+      //If we're not near any vertex, and we've clicked, create the vertex
+      if (near_vi == undefined) {
+        sip.graph.add_vertex(sip.near_integer);
+        near_vi = sip.graph.vertex_indices[ sip.near_integer.as_array() ];
+        created = true;
+        //console.log('Created vertex', near_vi, 'at', sip.near_integer);
+      }
+      //Now we know we've clicked a vertex; if there's a selected vertex, connect it
+      if (sip.selected_vertex != undefined) {
+        if (near_vi != sip.selected_vertex) {
+          sip.graph.add_edge(sip.selected_vertex, near_vi);
+          //console.log('Created edge between vertices', near_vi, sip.selected_vertex);
+        }
+        sip.selected_vertex = undefined;
+      } else if (!created) {      //If there's not a selected vertex, and we didn't just create it, select it
+        sip.selected_vertex = near_vi;
+      }
+      this.redraw_si_plot();
     }
     return;
   }
@@ -203,10 +257,11 @@ ShineGui.prototype.si_plot_mouse = function(evt) {
   }
   
   //If we got a mouse move, we need to zoom
-  if (evt.type == 'mousewheel') {
+  if (evt.type == 'mousewheel' || evt.type == 'DOMMouseScroll') {
     var mouse_real = this.pixel_to_R2(sip, new R2Point(mouse_p_x, mouse_p_y));
     var diff = sip.ul.sub(mouse_real);
-    var factor = (evt.wheelDelta < 0 ? 1/0.95 : 0.95);
+    var factor = (evt.hasOwnProperty('wheelDelta') ? (evt.wheelDelta < 0 ? 1/0.95 : 0.95)
+                                                               : (evt.detail < 0 ? 1/0.95 : 0.95));
     var new_diff = diff.scalar_mul( factor );
     sip.ul = mouse_real.add(new_diff);
     sip.width *= factor;
@@ -214,7 +269,7 @@ ShineGui.prototype.si_plot_mouse = function(evt) {
     evt.preventDefault();
   }
   
-  if (sip.dragging_plot || evt.type == 'mousewheel') {
+  if (sip.dragging_plot || evt.type == 'mousewheel' || evt.type == 'DOMMouseScroll') {
     this.redraw_si_plot();
   }
 }

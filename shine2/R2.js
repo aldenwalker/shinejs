@@ -20,9 +20,22 @@ R2Point.prototype.scalar_mul = function(s) {
 }
 
 R2Point.prototype.round = function() {
-  return new R2Point(Math.round(this.x), Math.round(this.y));
+  return new R2Point(~~Math.round(this.x), ~~Math.round(this.y));
 }
 
+
+R2Point.prototype.equal = function(p) {
+  return this.x == p.x && this.y == p.y;
+}
+
+
+R2Point.prototype.copy = function() {
+  return new R2Point(this.x, this.y);
+}
+
+R2Point.prototype.as_array = function() {
+  return [this.x, this.y];
+}
 
 function R2Graph() {
   this.vertices = [];
@@ -31,11 +44,11 @@ function R2Graph() {
 }
 
 R2Graph.prototype.add_vertex = function(coords) {
-  if (this.vertex_indices.hasOwnProperty( coords )) {
+  if (coords.as_array() in this.vertex_indices) {
     return true;
   }
   this.vertices.push( {'coords':coords, 'incident_edges':{}, 'adjacent_vertices':{}} );
-  this.vertex_indices[coords] = this.vertices.length-1;
+  this.vertex_indices[ coords.as_array() ] = this.vertices.length-1;
   return false;
 }
 
