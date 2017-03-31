@@ -67,6 +67,21 @@ Nope.
 
 <div id='si_box'>
 
+<div class='input' style='width:50%'>
+<div class='input_label'>Load preset graph:</div>
+<div class='input_input'> <select id='si_select_load_preset'></select><button type='button' id='si_button_load_preset'>Load</button>
+</div>
+</div>
+<br class='clear'>
+
+<div class='input' style='width:50%'>
+<div class='input_label'>Build surface from current graph:</div>
+<div class='input_input'> <button type='button' id='si_button_go'>Go</button>
+</div>
+</div>
+<br class='clear'>
+
+
 <div class='boxleft' id='si_div'>
 <div class='stacked-canvas-container'>
 <canvas id='si_plot_canvas' class='stacked-canvas'>Error with canvas</canvas>
@@ -83,7 +98,7 @@ Nope.
 
 <div class='box' id='surface_display'>
 <div class='box_title'>Surface display<button type='button' onclick="toggle_visible('surface_display')">&#8593;</button></div>
-<div class='box_content'>
+<div class='box_content' style='display:none;'>
 
 
 <div id='program-box'>
@@ -185,10 +200,21 @@ function toggle_visible(x) {
     content_child.style.display = 'block';
     title_button_child.innerHTML = '&#8593';
   }
+  window.dispatchEvent(new Event('resize'));
+}
+function make_visible(x) {
+  var elem = document.getElementById(x);
+  var title_child = elem.children[0];
+  var title_button_child = title_child.getElementsByTagName('button')[0];
+  var content_child = elem.children[1];
+  content_child.style.display = 'block';
+  title_button_child.innerHTML = '&#8593';
+  window.dispatchEvent(new Event('resize'));
 }
 </script>
 
 <script src='R2.js'></script>
+<script src='R3.js'></script>
 <script src='shine.js'></script>
 
 <script id='vertex_shader' type='x-shader/x-vertex'>

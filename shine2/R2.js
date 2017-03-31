@@ -43,6 +43,12 @@ function R2Graph() {
   this.edges = [];
 }
 
+R2Graph.prototype.reload = function(data) {
+  this.vertices = data.vertices;
+  this.vertex_indices = data.vertex_indices;
+  this.edges = data.edges;
+}
+
 R2Graph.prototype.add_vertex = function(coords) {
   if (coords.as_array() in this.vertex_indices) {
     return true;
@@ -59,11 +65,11 @@ R2Graph.prototype.add_edge = function( v1i, v2i ) {
     console.log("Vertices already connected");
     return false;
   }
-  this.edges.push( [v1i,v2i] );
   v1.adjacent_vertices[v2i] = true;
   v2.adjacent_vertices[v1i] = true;
   var angle1 = v2.coords.sub( v1.coords ).angle();
   var angle2 = v1.coords.sub( v2.coords ).angle();
+  this.edges.push( [v1i,v2i,angle1,angle2] );
   v1.incident_edges[angle1] = [this.edges.length-1, 0];
   v2.incident_edges[angle2] = [this.edges.length-1, 1];
 }

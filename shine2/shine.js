@@ -25,7 +25,18 @@ function ShineGui() {
                   'selected_vertex': undefined,
                   'div': document.getElementById('si_div'),
                   'dragging_plot': false,
-                  'graph': new R2Graph()};
+                  'graph': new R2Graph(),
+                  'control': {'preset_select':document.getElementById('si_select_load_preset'),
+                                'preset_load_button':document.getElementById('si_button_load_preset'),
+                                'button_go':document.getElementById('si_button_go')}};
+  var presets = this.load_preset_graph(false);
+  for (var i in presets) {
+    var op = document.createElement('option');
+    op.text = presets[i];
+    this.si_plot.control.preset_select.add(op);
+  }
+  this.si_plot.control.preset_load_button.onclick = function() { this.load_preset_graph(true); }.bind(this);
+  this.si_plot.control.button_go.onclick = this.load_new_surface.bind(this);
   this.si_plot.canvas.addEventListener('mousedown', this.si_plot_mouse.bind(this));
   this.si_plot.canvas.addEventListener('mouseup', this.si_plot_mouse.bind(this));
   this.si_plot.canvas.addEventListener('mousemove', this.si_plot_mouse.bind(this));
@@ -34,15 +45,14 @@ function ShineGui() {
   this.si_plot.CC = this.si_plot.canvas.getContext('2d');
 
   this.left_plot = {'canvas': document.getElementById('left_plot_canvas'),
-                    'ul': new R2Point(-3, 3),
-                    'width': 6,
-                    'scale_to_pixels':-1,
-                    'div': document.getElementById('left_plot_div'),
-                    'GL': {'canvas': document.getElementById('left_gl_plot_canvas'),
-                           'inited':false,
-                           'call_count':0},
-                    'dragging_plot':false,
-                    'control': {} };
+                        'ul': new R2Point(-3, 3),
+                        'width': 6,
+                        'scale_to_pixels':-1,
+                        'div': document.getElementById('left_plot_div'),
+                        'GL': {'canvas': document.getElementById('left_gl_plot_canvas'),
+                                'inited':false,
+                                'call_count':0},
+                        'control': {} };
   this.left_plot.CC = this.left_plot.canvas.getContext('2d');
 
   this.right_plot = {'canvas': document.getElementById('right_plot_canvas'),
@@ -56,6 +66,8 @@ function ShineGui() {
                     'dragging_plot':false,
                     'control': {} };
   this.right_plot.CC = this.right_plot.canvas.getContext('2d');
+  
+  this.surface = undefined;
 
   // for (var i=0; i<2; i++) {
   //   plots[i].canvas.addEventListener('mousedown', this.canvas_mouse.bind(this));
@@ -260,8 +272,8 @@ ShineGui.prototype.si_plot_mouse = function(evt) {
   if (evt.type == 'mousewheel' || evt.type == 'DOMMouseScroll') {
     var mouse_real = this.pixel_to_R2(sip, new R2Point(mouse_p_x, mouse_p_y));
     var diff = sip.ul.sub(mouse_real);
-    var factor = (evt.hasOwnProperty('wheelDelta') ? (evt.wheelDelta < 0 ? 1/0.95 : 0.95)
-                                                               : (evt.detail < 0 ? 1/0.95 : 0.95));
+    var factor = (evt.hasOwnProperty('wheelDelta') ? (evt.wheelDelta > 0 ? 1/0.95 : 0.95)
+                                                               : (evt.detail > 0 ? 1/0.95 : 0.95));
     var new_diff = diff.scalar_mul( factor );
     sip.ul = mouse_real.add(new_diff);
     sip.width *= factor;
@@ -273,6 +285,60 @@ ShineGui.prototype.si_plot_mouse = function(evt) {
     this.redraw_si_plot();
   }
 }
+
+
+ShineGui.prototype.load_preset_graph = function(s) {
+  var preset_names = ['Genus 2', 'Once punctured torus', 'Pair of pants'];
+  if (!s) {
+    return preset_names;
+  }
+  var pname = this.si_plot.control.preset_select.value;
+  var v = undefined;
+  var e = undefined;
+  switch (pname) {
+    case 'Genus 2':
+      v = [ [-2,0], [-1,-1], [-1,1], [0,0], [1,-1], [1,1], [2,0]];
+      e = [ [0,1], [0,2], [1,3], [2,3], [3,4], [3,5], [4,6], [5,6] ];
+      break;
+    case 'Once punctured torus':
+      v = [ [-2,0], [-1,-1], [-1,1], [0,0], [1,0] ];
+      e = [ [0,1], [0,2], [1,3], [2,3], [3,4] ];
+      break;
+    case 'Pair of pants':
+      v = [ [0,0], [-1,-1], [1,-1], [0,1] ];
+      e = [ [0,1], [0,2], [0,3] ];
+      break;
+    default:
+      console.log("Unknown type!");
+      break;
+  }
+  var ans = new R2Graph();
+  for (var i in v) {
+    ans.add_vertex( new R2Point(v[i][0], v[i][1]) );
+  }
+  for (var i in e) {
+    ans.add_edge( e[i][0], e[i][1] );
+  }
+  this.si_plot.graph = ans;
+  this.redraw_si_plot();
+}
+
+
+
+ShineGui.prototype.load_new_surface = function() {
+  console.log('loading surface!');
+  toggle_visible('surface_input');
+  make_visible('surface_display');
+  
+  this.surface = new R3Surface(this.si_plot.graph);
+  
+  this.redraw_left_plot();
+  this.redraw_right_plot();
+  
+}
+
+
+
 
 
 
