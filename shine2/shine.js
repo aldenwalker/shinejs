@@ -66,7 +66,9 @@ function ShineGui() {
                     'dragging_plot':false,
                     'view_trans':R3_trans_mat.identity(),
                     'dragging_view_trans':R3_trans_mat.identity(),
-                    'view_translation':R3_trans_mat.translate(0,0,-0.5),
+                    'view_translation':R3_trans_mat.translate(0,0,0.0),
+                    'view_perspective':R3_trans_mat.perspective(4,-4),
+                    'lighting_direction':[1,1,0],
                     'control': {} };
   this.right_plot.canvas.addEventListener('mousedown', this.right_plot_mouse.bind(this));
   this.right_plot.canvas.addEventListener('mouseup', this.right_plot_mouse.bind(this));
@@ -295,8 +297,8 @@ ShineGui.prototype.si_plot_mouse = function(evt) {
   if (evt.type == 'mousewheel' || evt.type == 'DOMMouseScroll') {
     var mouse_real = this.pixel_to_R2(sip, new R2Point(mouse_p_x, mouse_p_y));
     var diff = sip.ul.sub(mouse_real);
-    var factor = (evt.hasOwnProperty('wheelDelta') ? (evt.wheelDelta > 0 ? 1/0.95 : 0.95)
-                                                               : (evt.detail > 0 ? 1/0.95 : 0.95));
+    var factor = ('wheelDelta' in evt ? (evt.wheelDelta > 0 ? 1/0.95 : 0.95)
+                                      : (evt.detail > 0 ? 1/0.95 : 0.95));
     var new_diff = diff.scalar_mul( factor );
     sip.ul = mouse_real.add(new_diff);
     sip.width *= factor;
@@ -443,10 +445,17 @@ ShineGui.prototype.redraw_right_plot = function() {
   
   var uniform_trans = gl.getUniformLocation(shaders, 'u_trans');
   var final_trans = rp.dragging_view_trans.compose(rp.view_trans);
-  console.log('final transformation:', final_trans);
+  //console.log('final transformation:', final_trans);
   var final_trans = rp.view_translation.compose(final_trans);
-  console.log('final trans:', final_trans);
+  //console.log('final trans:', final_trans);
   gl.uniformMatrix4fv(uniform_trans, false, new Float32Array(final_trans.transpose().M));
+
+  var uniform_perspective = gl.getUniformLocation(shaders, 'u_perspective');
+  gl.uniformMatrix4fv(uniform_perspective, false, new Float32Array(rp.view_perspective.transpose().M));
+
+  R3_normalize_inplace(rp.lighting_direction);
+  var uniform_light_dir = gl.getUniformLocation(shaders, 'u_light_dir');
+  gl.uniform3fv(uniform_light_dir, new Float32Array(rp.lighting_direction));
   
   var uniform_color = gl.getUniformLocation(shaders, 'u_color');
   gl.uniform3fv(uniform_color, new Float32Array([0,0,1]));
@@ -455,6 +464,8 @@ ShineGui.prototype.redraw_right_plot = function() {
   gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, DD.flat_triangle_vertices_buf);
   gl.drawElements(gl.TRIANGLES, DD.flat_triangle_vertices.length, gl.UNSIGNED_SHORT, 0);
   
+  console.log('GL redraw');
+
   rp.GL.call_count++;
 }
 
@@ -478,6 +489,13 @@ ShineGui.prototype.create_right_plot = function() {
     DD.flat_vertex_locations[3*i+1] = T.vertex_locations[i][1];
     DD.flat_vertex_locations[3*i+2] = T.vertex_locations[i][2];
   }
+
+  DD.flat_vertex_normals = new Float32Array(3*T.vertex_normals.length);
+  for (var i=0; i<T.vertex_normals.length; i++) {
+    DD.flat_vertex_normals[3*i] = T.vertex_normals[i][0];
+    DD.flat_vertex_normals[3*i+1] = T.vertex_normals[i][1];
+    DD.flat_vertex_normals[3*i+2] = T.vertex_normals[i][2];
+  }
   
   DD.flat_triangle_vertices = new Uint16Array(3*T.triangle_vertices.length);
   for (var i=0; i<T.triangle_vertices.length; i++) {
@@ -487,13 +505,21 @@ ShineGui.prototype.create_right_plot = function() {
   }
     
   var gl = rp.GL.GLC;
+
+  var attrib_pos =    gl.getAttribLocation(rp.GL.shaders, 'a_pos');
+  var attrib_normal = gl.getAttribLocation(rp.GL.shaders, 'a_normal');
+
   DD.flat_vertex_locations_buf = gl.createBuffer();
   gl.bindBuffer(gl.ARRAY_BUFFER, DD.flat_vertex_locations_buf);
   gl.bufferData(gl.ARRAY_BUFFER, DD.flat_vertex_locations, gl.STATIC_DRAW);
-
-  var attrib_pos = gl.getAttribLocation(rp.GL.shaders, 'a_pos');
   gl.enableVertexAttribArray(attrib_pos);
   gl.vertexAttribPointer(attrib_pos, 3, gl.FLOAT, false, 0, 0);
+
+  DD.flat_vertex_normals_buf = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, DD.flat_vertex_normals_buf);
+  gl.bufferData(gl.ARRAY_BUFFER, DD.flat_vertex_normals, gl.STATIC_DRAW);
+  gl.enableVertexAttribArray(attrib_normal);
+  gl.vertexAttribPointer(attrib_normal, 3, gl.FLOAT, false, 0, 0);
 
   DD.flat_triangle_vertices_buf = gl.createBuffer();
   gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, DD.flat_triangle_vertices_buf);
@@ -501,7 +527,7 @@ ShineGui.prototype.create_right_plot = function() {
   
   rp.view_trans = R3_trans_mat.scale(2/(this.left_plot.width));
   rp.dragging_view_trans = R3_trans_mat.identity();
-  rp.view_translation = R3_trans_mat.translate(0,0,-0.5);
+  rp.view_translation = R3_trans_mat.translate(0,0,0);
   
   console.log('Created right plot');
   console.log(DD);
@@ -550,18 +576,29 @@ ShineGui.prototype.init_right_plot = function() {
 }
 
 window.vertex_shader_source =  '' +
-'attribute vec3 a_pos;                                    \n'+
+'attribute vec3 a_pos;                                      \n'+
+'attribute vec3 a_normal;                                   \n'+
 'uniform   mat4 u_trans;                                    \n'+
-'void main() {                                            \n'+
-'  gl_Position = u_trans * vec4(a_pos, 1.0);              \n'+
-'}                                                        \n';
+'uniform   mat4 u_perspective;                              \n'+
+'uniform   vec3 u_light_dir;                                \n'+
+'varying   vec3 v_light_scale;                              \n'+
+'void main() {                                              \n'+
+'  vec3 normal_trans = (u_trans * vec4(a_normal,0.0)).xyz;  \n'+
+'  normal_trans = normalize(normal_trans);                  \n'+
+'  float d = dot(u_light_dir, normal_trans);                \n'+
+'  d = max(d, 0.0);                                         \n'+
+'  v_light_scale = vec3(d, d, d);                           \n'+
+'  gl_Position = u_perspective * u_trans * vec4(a_pos, 1.0);                \n'+
+'}                                                          \n';
 
 window.fragment_shader_source = '' +
-'precision mediump float;                  \n'+
-'uniform vec3 u_color;                     \n'+
-'void main() {                             \n'+
-'  gl_FragColor = vec4(u_color,1.0);       \n'+
-'}                                         \n';
+'precision mediump float;                    \n'+
+'uniform vec3 u_color;                       \n'+
+'varying vec3 v_light_scale;                 \n'+
+'void main() {                               \n'+
+'  vec3 sc_color = 0.1*u_color + 0.9*v_light_scale*u_color;  \n'+
+'  gl_FragColor = vec4(sc_color,1.0);        \n'+
+'}                                           \n';
 
 
 ShineGui.prototype.right_plot_mouse = function(evt) {
@@ -594,14 +631,15 @@ ShineGui.prototype.right_plot_mouse = function(evt) {
     var drag_angle_x = 2*(drag_pixels_x / rp.canvas.width);
     var drag_angle_y = 2*(drag_pixels_y / rp.canvas.width);
     rp.dragging_view_trans = R3_trans_mat.rotate_xy(-drag_angle_y, drag_angle_x);
-    console.log('New dragging trans:', rp.dragging_view_rotation);
+    //console.log('New dragging trans:', rp.dragging_view_trans);
   }
   
   //If we got a mouse move, we need to zoom
   if (evt.type == 'mousewheel' || evt.type == 'DOMMouseScroll') {
-    var scale = (evt.hasOwnProperty('wheelDelta') ? (evt.wheelDelta > 0 ? 1/0.95 : 0.95)
-                                                                 : (evt.detail > 0 ? 1/0.95 : 0.95));
+    var scale = ('wheelDelta' in evt ? (evt.wheelDelta > 0 ? 1/0.95 : 0.95)
+                                     : (evt.detail > 0 ? 1/0.95 : 0.95));
     var modifier = R3_trans_mat.scale(1/scale);
+    //console.log('scaling by', 1/scale);
     rp.view_trans = modifier.compose(rp.view_trans);
     evt.preventDefault();
   }

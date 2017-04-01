@@ -1,4 +1,50 @@
 
+function pos_mod(x,n) {
+  return ((x%n)+n)%n;
+}
+
+//We don't create an R3Point object because maybe this is faster?
+
+function R3_sub(p0, p1) {
+  return [p0[0] - p1[0], p0[1] - p1[1], p0[2] - p1[2] ];
+}
+
+function R3_triangle_face_upright(vert_locs, tri) {
+  var cross_prod_z =  (vert_locs[tri[1]][0]-vert_locs[tri[0]][0])*(vert_locs[tri[2]][1]-vert_locs[tri[1]][1])
+                     -(vert_locs[tri[1]][1]-vert_locs[tri[0]][1])*(vert_locs[tri[2]][0]-vert_locs[tri[1]][0]);
+  return (cross_prod_z > 0);
+}
+
+function R3_normalize_inplace(v) {
+  var n = Math.sqrt( v[0]*v[0] + v[1]*v[1] + v[2]*v[2] );
+  v[0] /= n;
+  v[1] /= n;
+  v[2] /= n;
+}
+
+function R3_triangle_normal(vert_locs, tri) {
+  var v0 = vert_locs[tri[0]];
+  var v1 = vert_locs[tri[1]];
+  var v2 = vert_locs[tri[2]];
+  var d0 = R3_sub(v1, v0);
+  var d1 = R3_sub(v2, v1);
+  var cross_prod = [ d0[1]*d1[2] - d0[2]*d1[1], -(d0[0]*d1[2] - d0[2]*d1[0]), d0[0]*d1[1] - d0[1]*d1[0] ];
+  R3_normalize_inplace(cross_prod);
+  return cross_prod;
+}
+
+function R3_acc_inplace(a, b) {
+  a[0] += b[0];
+  a[1] += b[1];
+  a[2] += b[2];
+}
+
+
+
+
+
+
+
 function R3_trans_mat(m) {
   this.M = m.slice(0);
 }
@@ -31,6 +77,14 @@ R3_trans_mat.translate = function(x,y,z) {
   return new R3_trans_mat( [1,0,0,x, 0,1,0,y, 0,0,1,z, 0,0,0,1] );
 }
 
+R3_trans_mat.perspective = function(near, far) {
+  //var f = Math.tan(Math.PI * 0.5 - 0.5 * fieldOfViewInRadians);
+  var rangeInv = 1.0 / (near - far);
+  return new R3_trans_mat ( [ 3, 0, 0, 0,
+                              0, 3, 0, 0,
+                              0, 0, 1, -0.5,
+                              0, 0, 1, 1] );
+}
 
 R3_trans_mat.prototype.compose = function(other) {
   var t = this.M;
@@ -53,18 +107,7 @@ R3_trans_mat.prototype.transpose = function() {
 }
 
 
-function pos_mod(x,n) {
-  return ((x%n)+n)%n;
-}
 
-//We don't create an R3Point object because maybe this is faster?
-
-
-function R3_triangle_face_upright(vert_locs, tri) {
-  var cross_prod_z =  (vert_locs[tri[1]][0]-vert_locs[tri[0]][0])*(vert_locs[tri[2]][1]-vert_locs[tri[1]][1])
-                     -(vert_locs[tri[1]][1]-vert_locs[tri[0]][1])*(vert_locs[tri[2]][0]-vert_locs[tri[1]][0]);
-  return (cross_prod_z > 0);
-}
 
 
 
@@ -117,7 +160,7 @@ function R3Triangulation(graph, radius, create_shadow) {
       core_graph_mapping.vertex_mapping[i].type = 'boundary';
       core_graph_mapping.vertex_mapping[i].edges_to_new_vertices = {};
       var ak = Object.keys(v.incident_edges)[0];
-      var a = Number(a);
+      var a = Number(ak);
       var R2_location_1 = v.coords.angle_dist(a + Math.PI/2, radius);
       var R2_location_2 = v.coords.angle_dist(a + 3*Math.PI/2, radius);
       this.vertex_locations.push( [R2_location_1.x, R2_location_1.y, 0] );
@@ -211,6 +254,26 @@ function R3Triangulation(graph, radius, create_shadow) {
     }
   }
 
+  //Create the array of vertex normals, which are the average of the
+  //normals of the faces of the incident triangles
+  this.triangle_normals = [];
+  this.vertex_normals = [];
+  for (var i=0; i<this.triangle_vertices.length; i++) {
+    this.triangle_normals[i] = R3_triangle_normal( this.vertex_locations, this.triangle_vertices[i] );
+    for (var j=0; j<3; j++) {
+      var vi = this.triangle_vertices[i][j];
+      if (this.vertex_normals[vi] == undefined) {
+        this.vertex_normals[vi] = this.triangle_normals[i].slice(0);
+      } else {
+        R3_acc_inplace( this.vertex_normals[vi], this.triangle_normals[i] );
+      }
+    }
+  }
+  for (var i=0; i<this.vertex_normals.length; i++) {
+    R3_normalize_inplace(this.vertex_normals[i]);
+    //console.log('Vertex normal', this.vertex_normals[i], 'at', this.vertex_locations[i]);
+  }
+
   if (create_shadow) {
     this.shadow = {};
     this.shadow.vertex_locations = [];
@@ -237,7 +300,9 @@ function R3Triangulation(graph, radius, create_shadow) {
       var tv = this.shadow.triangle_vertices[i];
       if (!R3_triangle_face_upright(this.shadow.vertex_locations, tv)) continue;
       for (var j=0; j<3; j++) {
-        var other_triangle = this.shadow.edges_to_triangles[ [tv[(j+1)%3], tv[j]] ][0];
+        var other_triangle = this.shadow.edges_to_triangles[ [tv[(j+1)%3], tv[j]] ]
+        if (other_triangle == undefined) continue;
+        other_triangle = other_triangle[0];
         if (!this.shadow.triangle_face_upright[other_triangle]) {
           this.shadow.boundary_edges.push( [tv[j], tv[(j+1)%3]] );
         }
