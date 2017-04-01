@@ -30,7 +30,7 @@ function ShineGui() {
                                 'preset_load_button':document.getElementById('si_button_load_preset'),
                                 'button_go':document.getElementById('si_button_go')}};
   var presets = this.load_preset_graph(false);
-  for (var i in presets) {
+  for (var i=0; i<presets.length; i++) {
     var op = document.createElement('option');
     op.text = presets[i];
     this.si_plot.control.preset_select.add(op);
@@ -64,8 +64,17 @@ function ShineGui() {
                            'inited':false,
                            'call_count':0},
                     'dragging_plot':false,
+                    'view_trans':R3_trans_mat.identity(),
+                    'dragging_view_trans':R3_trans_mat.identity(),
+                    'view_translation':R3_trans_mat.translate(0,0,-0.5),
                     'control': {} };
-  this.right_plot.CC = this.right_plot.canvas.getContext('2d');
+  this.right_plot.canvas.addEventListener('mousedown', this.right_plot_mouse.bind(this));
+  this.right_plot.canvas.addEventListener('mouseup', this.right_plot_mouse.bind(this));
+  this.right_plot.canvas.addEventListener('mousemove', this.right_plot_mouse.bind(this));
+  this.right_plot.GL.canvas.addEventListener('mousewheel', this.right_plot_mouse.bind(this));
+  this.right_plot.GL.canvas.addEventListener('DOMMouseScroll', this.right_plot_mouse.bind(this));
+  this.right_plot.canvas.addEventListener('mousewheel', this.right_plot_mouse.bind(this));
+  this.right_plot.canvas.addEventListener('DOMMouseScroll', this.right_plot_mouse.bind(this));
   
   this.surface = undefined;
 
@@ -100,8 +109,8 @@ ShineGui.prototype.resize_canvases = function() {
   this.left_plot.canvas.height = w;
   this.right_plot.canvas.width = w;
   this.right_plot.canvas.height = w;
-  this.left_plot.scale_to_pixels = w / this.right_plot.width;
-  this.right_plot.scale_to_pixels = w / this.left_plot.width;
+  this.left_plot.scale_to_pixels = w / this.left_plot.width;
+  this.right_plot.scale_to_pixels = w / this.right_plot.width;
   
   this.left_plot.GL.canvas.width = w;
   this.left_plot.GL.canvas.height = w;
@@ -112,6 +121,12 @@ ShineGui.prototype.resize_canvases = function() {
   this.left_plot.div.style.height = w;
   this.right_plot.div.style.width = w;
   this.right_plot.div.style.height = w;
+  
+  if (this.right_plot.GL.inited) {
+    this.right_plot.GL.GLC.viewport(0, 0, this.right_plot.GL.canvas.width, this.right_plot.GL.canvas.height);
+    this.right_plot.GL.GLC.clear(this.right_plot.GL.GLC.COLOR_BUFFER_BIT | 
+                                  this.right_plot.GL.GLC.DEPTH_BUFFER_BIT);
+  }
   
   this.redraw_left_plot();
   this.redraw_right_plot();
@@ -137,10 +152,18 @@ ShineGui.prototype.pixel_to_R2 = function(X, p) {
                       X.ul.y - (p.y / X.scale_to_pixels) );
 }
 
+ShineGui.prototype.xy_to_pixel = function(X, x, y) {
+  return new Pixel( (x - X.ul.x) * X.scale_to_pixels,
+                    -(y - X.ul.y) * X.scale_to_pixels );
+}
+
 ShineGui.prototype.R2_to_pixel = function(X, c) {
   return new Pixel( (c.x - X.ul.x) * X.scale_to_pixels,
                     -(c.y - X.ul.y) * X.scale_to_pixels );
 }
+
+
+
 
 
 
@@ -168,7 +191,7 @@ ShineGui.prototype.redraw_si_plot = function() {
   //console.log('Drawing graph:', sip.graph);
   sip.CC.strokeStyle = '#000000';
   sip.CC.lineWidth = 3;
-  for (var i in sip.graph.edges) {
+  for (var i=0; i<sip.graph.edges.length; i++) {
     var e = sip.graph.edges[i];
     var v1p = this.R2_to_pixel(sip, sip.graph.vertices[e[0]].coords);
     var v2p = this.R2_to_pixel(sip, sip.graph.vertices[e[1]].coords);
@@ -177,7 +200,7 @@ ShineGui.prototype.redraw_si_plot = function() {
     sip.CC.lineTo( v2p.x, v2p.y );
     sip.CC.stroke();
   }
-  for (var i in sip.graph.vertices) {
+  for (var i=0; i<sip.graph.vertices.length; i++) {
     sip.CC.fillStyle = (sip.selected_vertex == i ? '#FF0000' : '#000000');
     var vp = this.R2_to_pixel(sip, sip.graph.vertices[i].coords);
     sip.CC.beginPath();
@@ -313,10 +336,10 @@ ShineGui.prototype.load_preset_graph = function(s) {
       break;
   }
   var ans = new R2Graph();
-  for (var i in v) {
+  for (var i=0; i<v.length; i++) {
     ans.add_vertex( new R2Point(v[i][0], v[i][1]) );
   }
-  for (var i in e) {
+  for (var i=0; i<e.length; i++) {
     ans.add_edge( e[i][0], e[i][1] );
   }
   this.si_plot.graph = ans;
@@ -332,7 +355,26 @@ ShineGui.prototype.load_new_surface = function() {
   
   this.surface = new R3Surface(this.si_plot.graph);
   
+  var sh = this.surface.triangulations[0].shadow;
+  var ul = new R2Point(-1,1);
+  var lr = new R2Point(1,-1);
+  for (var i=0; i<sh.vertex_locations.length; i++) {
+    var vl = sh.vertex_locations[i];
+    if (vl[0] < ul.x) ul.x = vl[0];
+    if (vl[1] > ul.y) ul.y = vl[1];
+    if (vl[0] > lr.x) lr.x = vl[0];
+    if (vl[1] < lr.y) lr.y = vl[1];
+  }
+  var center = ul.add(lr).scalar_mul(0.5);
+  var width = Math.max(ul.y-lr.y, lr.x-ul.x);
+  width *= 1.1;
+  this.left_plot.ul = center.add(new R2Point(-width/2, width/2));
+  this.left_plot.width = width;
+  this.left_plot.scale_to_pixels = this.left_plot.canvas.width / width;
+  
+  
   this.redraw_left_plot();
+  this.create_right_plot();
   this.redraw_right_plot();
   
 }
@@ -345,151 +387,229 @@ ShineGui.prototype.load_new_surface = function() {
 
 
 
-ShineGui.prototype.redraw_left_plot = function() {
-  var sip = this.left_plot;
-  sip.CC.clearRect(0,0,sip.canvas.width,sip.canvas.height);
 
-  sip.CC.strokeStyle = '#000000';
-  sip.CC.beginPath();
-  sip.CC.moveTo( 20, 20 );
-  sip.CC.lineTo( 40, 50 );
-  sip.CC.stroke();
+
+
+
+
+
+ShineGui.prototype.redraw_left_plot = function() {
+  var lp = this.left_plot;
+  lp.CC.clearRect(0,0,lp.canvas.width,lp.canvas.height);
+  
+  if (this.surface == undefined || this.surface.triangulations[0].shadow == undefined) {
+    return;
+  }
+  
+  var s = this.surface.triangulations[0].shadow;
+  
+  lp.CC.strokeStyle = '#000000';
+  lp.CC.lineWidth = 3;
+  for (var i=0; i<s.boundary_edges.length; i++) {
+    var e = s.boundary_edges[i];
+    var v0 = s.vertex_locations[e[0]];
+    var v1 = s.vertex_locations[e[1]];
+    var p0 = this.xy_to_pixel(lp, v0[0], v0[1]);
+    var p1 = this.xy_to_pixel(lp, v1[0], v1[1]);
+    lp.CC.beginPath();
+    lp.CC.moveTo( p0.x, p0.y );
+    lp.CC.lineTo( p1.x, p1.y );
+    lp.CC.stroke();
+  }
+
 }
 
 ShineGui.prototype.redraw_right_plot = function() {
-  var sip = this.right_plot;
-  sip.CC.clearRect(0,0,sip.canvas.width,sip.canvas.height);
-
-  sip.CC.strokeStyle = '#000000';
-  sip.CC.beginPath();
-  sip.CC.moveTo( 20, 20 );
-  sip.CC.lineTo( 40, 50 );
-  sip.CC.stroke();
-}
-
-/*********************************************************************
- * Julia set webgl drawing
- *********************************************************************/
-ShineGui.prototype.clear_gl_plot = function(X) {
-  if (!X.GL.hasOwnProperty('GLC')) return;
-  X.GL.GLC.viewport(0, 0, X.GL.canvas.width, X.GL.canvas.height);
-  X.GL.GLC.clear(X.GL.GLC.COLOR_BUFFER_BIT);
-}
-
-
-ShineGui.prototype.redraw_gl_plot = function(X, P) {
-
-  if (X.GL.call_count % 2 != 0) {
+  var rp = this.right_plot;
+  if (rp.GL.call_count % 2 != 0) {
     console.log('Called plot gl in parallel? aborting');
     return;
   }
-  if (X.GL.hasOwnProperty('webgl-error')) return;
-  X.GL.call_count++;
- 
-  //determine whether we need to reload the shaders  
-  var must_reload = !X.GL.inited;
-  
-  var func_string = P.toString();
-  if (!X.GL.hasOwnProperty('func_string') || X.GL.func_string != func_string) {
-    X.GL.func_string = func_string;
-    must_reload = true;
+  if (rp.GL.hasOwnProperty('webgl-error')) return;
+  rp.GL.call_count++;
+  if (this.surface == undefined) {
+    rp.GL.call_count++;
+    return;
   }
-  if (!X.GL.hasOwnProperty('GLC')) {
-    X.GL.GLC = X.GL.canvas.getContext('webgl');
-    if (X.GL.GLC == null) {
-      X.GL.GLC = X.GL.canvas.getContext('experimental-webgl');
-    }
-    if (X.GL.GLC == null) {
-      X.GL['webgl-error'] = true;
-      alert('WebGL support not found');
-      return;
-    }
-    must_reload = true;
-  }
+  if (!rp.GL.inited) this.create_right_plot();
+
   
-  X.GL.color = true;
-  X.GL.GLC.viewport(0, 0, X.GL.canvas.width, X.GL.canvas.height);
-  
-  //reload the shaders
-  if (must_reload) {
-    var gl = X.GL.GLC;
-    X.GL.vertex_shader_source = document.getElementById('vertex_shader').text;
-    X.GL.vertex_shader = gl.createShader(gl.VERTEX_SHADER);
-    gl.shaderSource(X.GL.vertex_shader, X.GL.vertex_shader_source);
-    gl.compileShader(X.GL.vertex_shader);
-
-    //X.GL.fragment_shader_source = document.getElementById('fragment_shader').text;
-    X.GL.fragment_shader_source = document.getElementById('fragment_shader_escaperate').text;
-    //X.GL.fragment_shader_source = document.getElementById('fragment_shader_debug').text;
-    var new_code = P.c_code();
-    X.GL.fragment_shader_source = X.GL.fragment_shader_source.replace('DYNAMICALLY_SET_FUNCTION', new_code);
-    //console.log(X.GL.fragment_shader_source);
-    X.GL.fragment_shader = gl.createShader(gl.FRAGMENT_SHADER);
-    gl.shaderSource(X.GL.fragment_shader, X.GL.fragment_shader_source);
-    gl.compileShader(X.GL.fragment_shader);
-  
-    X.GL.shaders = gl.createProgram();
-    gl.attachShader(X.GL.shaders, X.GL.vertex_shader);
-    gl.attachShader(X.GL.shaders, X.GL.fragment_shader);
-    gl.linkProgram(X.GL.shaders);
-    gl.useProgram(X.GL.shaders);
-    
-    X.GL.inited = true;
-  }
-  
-  this.render_gl_plot(X, P);
-
-  X.GL.call_count++;  
-}
-
-
-ShineGui.prototype.render_gl_plot = function(X, P) {
-
-  //This function does the actual rendering, assuming everything is set up
-  var gl = X.GL.GLC;
-  var shaders = X.GL.shaders;
+  var gl = rp.GL.GLC;
+  var shaders = rp.GL.shaders;
+  var DD = rp.GL.display_data;
 
   gl.clearColor(1.0, 1.0, 1.0, 1.0);
   gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
   
-  var verts = [1.0, 1.0, -1.0, 1.0, -1.0, -1.0, 1.0, -1.0];
-  var vert_buffer = gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER, vert_buffer);
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(verts), gl.STATIC_DRAW);
-  var vert_pos_attrib = gl.getAttribLocation(shaders, "a_vert_pos");
-  gl.enableVertexAttribArray(vert_pos_attrib);
-  gl.vertexAttribPointer(vert_pos_attrib, 2, gl.FLOAT, false, 0, 0);
- 
-  var triangle_data = [1, 2, 0, 3];
-  var triangle_data_buffer = gl.createBuffer();
-  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, triangle_data_buffer);
-  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(triangle_data), gl.STATIC_DRAW);
+  var uniform_trans = gl.getUniformLocation(shaders, 'u_trans');
+  var final_trans = rp.dragging_view_trans.compose(rp.view_trans);
+  console.log('final transformation:', final_trans);
+  var final_trans = rp.view_translation.compose(final_trans);
+  console.log('final trans:', final_trans);
+  gl.uniformMatrix4fv(uniform_trans, false, new Float32Array(final_trans.transpose().M));
   
-  //loading these uniforms is really the only thing that changes
-  var plot_ul_uniform = gl.getUniformLocation(shaders, "plot_ul");
-  gl.uniform2fv(plot_ul_uniform, new Float32Array([X.ul.real, X.ul.imag]) )
-  var plot_width_uniform = gl.getUniformLocation(shaders, "plot_width");
-  gl.uniform1f(plot_width_uniform, X.width);
-  var do_color_uniform = gl.getUniformLocation(shaders, "do_color");
-  gl.uniform1i(do_color_uniform, X.GL.color);
+  var uniform_color = gl.getUniformLocation(shaders, 'u_color');
+  gl.uniform3fv(uniform_color, new Float32Array([0,0,1]));
   
-  var shading = gl.getUniformLocation(shaders, "shading");
-  gl.uniform1f(shading, Number(X.control.julia_shading.value));
+  gl.bindBuffer(gl.ARRAY_BUFFER, DD.flat_vertex_locations_buf);
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, DD.flat_triangle_vertices_buf);
+  gl.drawElements(gl.TRIANGLES, DD.flat_triangle_vertices.length, gl.UNSIGNED_SHORT, 0);
   
-  var degree = gl.getUniformLocation(shaders, "degree");
-  gl.uniform1f(degree, Number(P.roots.length));
-  
-  var basin_bound = gl.getUniformLocation(shaders, "basin_bound");
-  var basin_bound_value = P.expand().basin_of_infinity(1.0);
-  //console.log('Basin bound:', basin_bound_value);
-  gl.uniform1f(basin_bound, basin_bound_value);
-  
-
-  gl.drawElements(gl.TRIANGLE_STRIP, 4, gl.UNSIGNED_SHORT, 0);
-
+  rp.GL.call_count++;
 }
 
 
+
+
+
+ShineGui.prototype.create_right_plot = function() {
+  if (this.surface == undefined) return;
+  var rp = this.right_plot;
+  if (!rp.GL.inited) this.init_right_plot();
+  
+  var T = this.surface.triangulations[this.surface.triangulations.length-1];
+  
+  rp.GL.display_data = {};
+  var DD = rp.GL.display_data;
+  
+  DD.flat_vertex_locations = new Float32Array(3*T.vertex_locations.length);
+  for (var i=0; i<T.vertex_locations.length; i++) {
+    DD.flat_vertex_locations[3*i] = T.vertex_locations[i][0];
+    DD.flat_vertex_locations[3*i+1] = T.vertex_locations[i][1];
+    DD.flat_vertex_locations[3*i+2] = T.vertex_locations[i][2];
+  }
+  
+  DD.flat_triangle_vertices = new Uint16Array(3*T.triangle_vertices.length);
+  for (var i=0; i<T.triangle_vertices.length; i++) {
+    DD.flat_triangle_vertices[3*i] = T.triangle_vertices[i][0];
+    DD.flat_triangle_vertices[3*i+1] = T.triangle_vertices[i][1];
+    DD.flat_triangle_vertices[3*i+2] = T.triangle_vertices[i][2];
+  }
+    
+  var gl = rp.GL.GLC;
+  DD.flat_vertex_locations_buf = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, DD.flat_vertex_locations_buf);
+  gl.bufferData(gl.ARRAY_BUFFER, DD.flat_vertex_locations, gl.STATIC_DRAW);
+
+  var attrib_pos = gl.getAttribLocation(rp.GL.shaders, 'a_pos');
+  gl.enableVertexAttribArray(attrib_pos);
+  gl.vertexAttribPointer(attrib_pos, 3, gl.FLOAT, false, 0, 0);
+
+  DD.flat_triangle_vertices_buf = gl.createBuffer();
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, DD.flat_triangle_vertices_buf);
+  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, DD.flat_triangle_vertices, gl.STATIC_DRAW); 
+  
+  rp.view_trans = R3_trans_mat.scale(2/(this.left_plot.width));
+  rp.dragging_view_trans = R3_trans_mat.identity();
+  rp.view_translation = R3_trans_mat.translate(0,0,-0.5);
+  
+  console.log('Created right plot');
+  console.log(DD);
+}
+
+
+ShineGui.prototype.init_right_plot = function() {
+  var rp = this.right_plot;
+  if (rp.GL.hasOwnProperty('GLC')) {
+    console.log("Already have the gl context?");
+    return;
+  }
+  rp.GL.GLC = rp.GL.canvas.getContext('webgl');
+  if (rp.GL.GLC == null) {
+    rp.GL.GLC = rp.GL.canvas.getContext('experimental-webgl');
+  }
+  if (rp.GL.GLC == null) {
+    rp.GL['webgl-error'] = true;
+    alert('WebGL support not found');
+    return;
+  }
+  rp.GL.color = true;
+  rp.GL.GLC.viewport(0, 0, rp.GL.canvas.width, rp.GL.canvas.height);
+  
+  var gl = rp.GL.GLC;
+  rp.GL.vertex_shader_source = window.vertex_shader_source;
+  rp.GL.vertex_shader = gl.createShader(gl.VERTEX_SHADER);
+  gl.shaderSource(rp.GL.vertex_shader, rp.GL.vertex_shader_source);
+  gl.compileShader(rp.GL.vertex_shader);
+
+  rp.GL.fragment_shader_source = window.fragment_shader_source;
+  rp.GL.fragment_shader = gl.createShader(gl.FRAGMENT_SHADER);
+  gl.shaderSource(rp.GL.fragment_shader, rp.GL.fragment_shader_source);
+  gl.compileShader(rp.GL.fragment_shader);
+
+  rp.GL.shaders = gl.createProgram();
+  gl.attachShader(rp.GL.shaders, rp.GL.vertex_shader);
+  gl.attachShader(rp.GL.shaders, rp.GL.fragment_shader);
+  gl.linkProgram(rp.GL.shaders);
+  gl.useProgram(rp.GL.shaders);
+  
+  gl.enable(gl.DEPTH_TEST);
+  gl.disable(gl.CULL_FACE);
+  
+  rp.GL.inited = true;
+}
+
+window.vertex_shader_source =  '' +
+'attribute vec3 a_pos;                                    \n'+
+'uniform   mat4 u_trans;                                    \n'+
+'void main() {                                            \n'+
+'  gl_Position = u_trans * vec4(a_pos, 1.0);              \n'+
+'}                                                        \n';
+
+window.fragment_shader_source = '' +
+'precision mediump float;                  \n'+
+'uniform vec3 u_color;                     \n'+
+'void main() {                             \n'+
+'  gl_FragColor = vec4(u_color,1.0);       \n'+
+'}                                         \n';
+
+
+ShineGui.prototype.right_plot_mouse = function(evt) {
+  var rp = this.right_plot;
+  var canvas_rect = rp.canvas.getBoundingClientRect();
+  var mouse_p_x = evt.clientX - canvas_rect.left;
+  var mouse_p_y = evt.clientY - canvas_rect.top;
+  
+  if (evt.type == 'mousemove' && !rp.dragging_plot) return;
+  if (evt.type == 'mousedown') {
+    if (evt.button != 0) return;
+    rp.dragging_plot = true;
+    rp.dragging_start = [mouse_p_x, mouse_p_y];
+    console.log('start right drag');
+    return;
+  } else if (evt.type == 'mouseup') {
+    if (evt.button != 0) return;
+    rp.dragging_plot = false;    
+    rp.view_trans = rp.dragging_view_trans.compose(rp.view_trans);
+    rp.dragging_view_trans = R3_trans_mat.identity();
+    this.redraw_right_plot();
+    console.log('stop right drag');
+    return;
+  }
+  //if we are dragging the plot, and we got a mousemove, 
+  //adjust the plot location as appropriate
+  if (evt.type == 'mousemove' && rp.dragging_plot) {
+    var drag_pixels_x = mouse_p_x - rp.dragging_start[0];
+    var drag_pixels_y = mouse_p_y - rp.dragging_start[1];
+    var drag_angle_x = 2*(drag_pixels_x / rp.canvas.width);
+    var drag_angle_y = 2*(drag_pixels_y / rp.canvas.width);
+    rp.dragging_view_trans = R3_trans_mat.rotate_xy(-drag_angle_y, drag_angle_x);
+    console.log('New dragging trans:', rp.dragging_view_rotation);
+  }
+  
+  //If we got a mouse move, we need to zoom
+  if (evt.type == 'mousewheel' || evt.type == 'DOMMouseScroll') {
+    var scale = (evt.hasOwnProperty('wheelDelta') ? (evt.wheelDelta > 0 ? 1/0.95 : 0.95)
+                                                                 : (evt.detail > 0 ? 1/0.95 : 0.95));
+    var modifier = R3_trans_mat.scale(1/scale);
+    rp.view_trans = modifier.compose(rp.view_trans);
+    evt.preventDefault();
+  }
+  
+  if (rp.dragging_plot || evt.type == 'mousewheel' || evt.type == 'DOMMouseScroll') {
+    this.redraw_right_plot();
+  }
+}
 
 
 

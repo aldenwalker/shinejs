@@ -1,6 +1,73 @@
+
+function R3_trans_mat(m) {
+  this.M = m.slice(0);
+}
+
+R3_trans_mat.identity = function() {
+  return new R3_trans_mat( [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1] );
+}
+
+R3_trans_mat.scale = function(s) {
+  return new R3_trans_mat( [s,0,0,0, 0,s,0,0, 0,0,s,0, 0,0,0,1] );
+}
+
+R3_trans_mat.rotate_xy = function(x_angle, y_angle) {
+  var ca = Math.cos(x_angle);
+  var sa = Math.sin(x_angle);
+  var xm = new R3_trans_mat( [1,  0,   0, 0,
+                               0, ca, -sa, 0,
+                               0, sa,  ca, 0,
+                               0,  0,   0, 1] );
+  ca = Math.cos(y_angle);
+  sa = Math.sin(y_angle);
+  var ym = new R3_trans_mat( [ca,  0, -sa, 0,
+                               0,   1,   0, 0,
+                               sa,  0,  ca, 0,
+                               0,   0,   0, 1] );
+  return xm.compose(ym);
+}
+
+R3_trans_mat.translate = function(x,y,z) {
+  return new R3_trans_mat( [1,0,0,x, 0,1,0,y, 0,0,1,z, 0,0,0,1] );
+}
+
+
+R3_trans_mat.prototype.compose = function(other) {
+  var t = this.M;
+  var o = other.M;
+  var ans = [];
+  for (var i=0; i<4; i++) {
+    for (var j=0; j<4; j++) {
+      ans[4*i+j] = t[4*i]*o[j] + t[4*i+1]*o[4+j] + t[4*i+2]*o[8+j] + t[4*i+3]*o[12+j];
+    }
+  }
+  return new R3_trans_mat( ans );
+}
+
+R3_trans_mat.prototype.transpose = function() {
+  var t = this.M;
+  return new R3_trans_mat( [ t[0], t[4], t[8], t[12],
+                              t[1], t[5], t[9], t[13],
+                              t[2], t[6], t[10],t[14],
+                              t[3], t[7], t[11],t[15] ] );
+}
+
+
 function pos_mod(x,n) {
   return ((x%n)+n)%n;
 }
+
+//We don't create an R3Point object because maybe this is faster?
+
+
+function R3_triangle_face_upright(vert_locs, tri) {
+  var cross_prod_z =  (vert_locs[tri[1]][0]-vert_locs[tri[0]][0])*(vert_locs[tri[2]][1]-vert_locs[tri[1]][1])
+                     -(vert_locs[tri[1]][1]-vert_locs[tri[0]][1])*(vert_locs[tri[2]][0]-vert_locs[tri[1]][0]);
+  return (cross_prod_z > 0);
+}
+
+
+
 
 
 function R3Surface(graph) {
@@ -11,12 +78,12 @@ function R3Surface(graph) {
   
   //Find the closest that a vertex ever comes to an edge not incident to it
   var closest = 1;
-  for (var i in this.core_graph.vertices) {
+  for (var i=0; i<this.core_graph.vertices.length; i++) {
     var v = this.core_graph.vertices[i];
-    for (var j in this.core_graph.edges) {
-      var e = this.core_graph.edges;
+    for (var j=0; j<this.core_graph.edges.length; j++) {
+      var e = this.core_graph.edges[j];
       if (e[0] == i || e[1] == i) continue;
-      var d = distance_to_segment(v.coords, this.core_graph.vertices[e[0]].coords, this.core_graph.vertices[e[1]].coords);
+      var d = R2_distance_to_segment(v.coords, this.core_graph.vertices[e[0]].coords, this.core_graph.vertices[e[1]].coords);
       if (d < closest) {
         closest = d;
       }
@@ -25,12 +92,12 @@ function R3Surface(graph) {
   //We make the tube radius 1/3 of the closest distance
   var tube_radius = (1/3)*closest;
   
-  this.base_triangulation = R3Triangulation(this.core_graph, tube_radius, true);
+  console.log("Decided on tube radius:", tube_radius);
+  
+  this.triangulations = [new R3Triangulation(this.core_graph, tube_radius, true)];
   
 }
 
-
-//We don't create an R3Point object because maybe this is faster?
 
 
 
@@ -38,67 +105,62 @@ function R3Triangulation(graph, radius, create_shadow) {
   
   //Create all the vertices for each core vertex -------------------------------
   this.vertex_locations = [];
-  this.vertices = [];
   var core_graph_mapping = { 'vertex_mapping':{} };
-  for (var i in graph.vertices) {
+  for (var i=0; i<graph.vertices.length; i++) {
     //For each incident edge, we need to place a vertex whose angle is halfway between the edge and the next
     //(there is a special case for one edge)
     //The core graph mapping is redundant and remembers the vertices before and after each edge
     var v = graph.vertices[i];
     core_graph_mapping.vertex_mapping[i] = {};
-    var num_e = v.incident_edges.length;
+    var num_e = Object.keys(v.incident_edges).length;
     if (num_e == 1) {
       core_graph_mapping.vertex_mapping[i].type = 'boundary';
-      var a = Number(v.incident_edges.keys()[0]);
+      core_graph_mapping.vertex_mapping[i].edges_to_new_vertices = {};
+      var ak = Object.keys(v.incident_edges)[0];
+      var a = Number(a);
       var R2_location_1 = v.coords.angle_dist(a + Math.PI/2, radius);
       var R2_location_2 = v.coords.angle_dist(a + 3*Math.PI/2, radius);
       this.vertex_locations.push( [R2_location_1.x, R2_location_1.y, 0] );
-      this.vertices.push( {'coords_ind':this.vertex_locations.length-1} );
       this.vertex_locations.push( [R2_location_2.x, R2_location_2.y, 0] );
-      this.vertices.push( {'coords_ind':this.vertex_locations.length-1} );
-      core_graph_mapping.vertex_mapping[i].edges_to_new_vertices[a] = [this.vertices.length-1, this.vertices.length-2];
+      core_graph_mapping.vertex_mapping[i].edges_to_new_vertices[ak] = [this.vertex_locations.length-1, this.vertex_locations.length-2];
     } else {
       core_graph_mapping.vertex_mapping[i].type = 'normal';
       core_graph_mapping.vertex_mapping[i].edges_to_new_vertices = {};
-      var angles = Object.keys(v.incident_edges).map(Number);
-      angles.sort( function(a,b) { return a - b; } );
-      for (var i in angles) {
-        core_graph_mapping.vertex_mapping[i].edges_to_new_vertices[angles[i]] = [];
+      var angles = Object.keys(v.incident_edges);
+      angles.sort( function(a,b) { return Number(a) - Number(b); } );
+      for (var j=0; j<angles.length; j++) {
+        core_graph_mapping.vertex_mapping[i].edges_to_new_vertices[angles[j]] = [];
       }
-      for (var i in angles) {
+      for (var j=0; j<angles.length; j++) {
         //Make all angles positive
-        var ea0 = angles[i];
-        var ea1 = angles[(i+1)%num_e];
-        var a0 = pos_mod(ea0, 2*Math.PI);
-        var a1 = pos_mod(ea1, 2*Math.PI);
-        var angle_diff = a2-a1;
-        var av_angle = a1 + 0.5*angle_diff;
+        var ea0 = angles[j];
+        var ea1 = angles[(j+1)%num_e];
+        var a0 = pos_mod(Number(ea0), 2*Math.PI);
+        var a1 = pos_mod(Number(ea1), 2*Math.PI);
+        var angle_diff = a1-a0;
+        var av_angle = a0 + 0.5*angle_diff;
         //we need to go out along this angle until the radius is correct
         //law of sin: sin(angle_diff/2)/radius = sin(pi/2)/dist
         var dist = radius / Math.sin(angle_diff/2);
         var R2_location = v.coords.angle_dist(av_angle, dist);
         //Add the vertex
         this.vertex_locations.push( [R2_location.x, R2_location.y, 0] );
-        this.vertices.push( {'coords_ind':this.vertex_locations.length-1} );
-        core_graph_mapping.vertex_mapping[i].edges_to_new_vertices[ea0][1] = this.vertices.length-1;
-        core_graph_mapping.vertex_mapping[i].edges_to_new_vertices[ea1][0] = this.vertices.length-1;
+        core_graph_mapping.vertex_mapping[i].edges_to_new_vertices[ea0][1] = this.vertex_locations.length-1;
+        core_graph_mapping.vertex_mapping[i].edges_to_new_vertices[ea1][0] = this.vertex_locations.length-1;
       }
-      //Add vertices on the top and bottom
-      this.vertex_locations.push( [ v.coords.x, v.coords.y, radius ] );
-      this.vertices.push( {'coords_ind':this.vertex_locations.length-1} );
-      core_graph_mapping.vertex_mapping[i].top_ind = this.vertices.length-1;
-      this.vertex_locations.push( [ v.coords.x, v.coords.y, -radius ] );
-      this.vertices.push( {'coords_ind':this.vertex_locations.length-1} );
-      core_graph_mapping.vertex_mapping[i].bottom_ind = this.vertices.length-1;
     }
+    //Add vertices on the top and bottom
+    this.vertex_locations.push( [ v.coords.x, v.coords.y, radius ] );
+    core_graph_mapping.vertex_mapping[i].top_ind = this.vertex_locations.length-1;
+    this.vertex_locations.push( [ v.coords.x, v.coords.y, -radius ] );
+    core_graph_mapping.vertex_mapping[i].bottom_ind = this.vertex_locations.length-1;
   }
   
   // Create the triangle strips encircling each edge -------------------------------------
   // Facing away from the initial vertex, we start at the right and circle counterclockwise
   this.triangle_vertices = [];
-  this.triangles = [];
   
-  for (var i in graph.edges) {
+  for (var i=0; i<graph.edges.length; i++) {
     var e = graph.edges[i];
     var a0 = e[2];
     var a1 = e[3];
@@ -129,21 +191,20 @@ function R3Triangulation(graph, radius, create_shadow) {
                                    cgmvm1.edges_to_new_vertices[a1][0],
                                    cgmvm1.bottom_ind],
                                   //lower right
-                                  [cgmvm0.botom_ind,
+                                  [cgmvm0.bottom_ind,
                                    cgmvm1.bottom_ind,
                                    cgmvm0.edges_to_new_vertices[a0][0]],
                                   [cgmvm0.edges_to_new_vertices[a0][0],
                                    cgmvm1.bottom_ind,
                                    cgmvm1.edges_to_new_vertices[a1][1]] ];
-    for (var j in new_triangle_vertices) {
+    for (var j=0; j<new_triangle_vertices.length; j++) {
       this.triangle_vertices.push( new_triangle_vertices[j] );
-      this.triangles.push( {'coords_ind':this.triangle_vertices.length-1} );
     }
   }
 
   this.edges_to_triangles = {};  // Maps pairs of vertices to triangle edges
-                                 // note they are ordered, so it returns the triangle for which it's positive
-  for (var i in this.triangle_vertices) {
+                                  // note they are ordered, so it returns the triangle for which it's positive
+  for (var i=0; i<this.triangle_vertices.length; i++) {
     var tv = this.triangle_vertices[i];
     for (var j=0; j<3; j++) {
       this.edges_to_triangles[ [tv[j], tv[(j+1)%3]] ] = [i,j];
@@ -153,18 +214,34 @@ function R3Triangulation(graph, radius, create_shadow) {
   if (create_shadow) {
     this.shadow = {};
     this.shadow.vertex_locations = [];
-    for (var i in this.vertex_locations) {
+    for (var i=0; i<this.vertex_locations.length; i++) {
       var vl = this.vertex_locations[i];
-      this.shadow.vertex_locations.push( [vl[0], v1[1], 0] );
+      this.shadow.vertex_locations.push( [vl[0], vl[1], 0] );
     }
     this.shadow.triangle_vertices = [];
-    for (var i in this.triangle_vertices) {
+    this.shadow.triangle_face_upright = [];
+    this.shadow.edges_to_triangles = {};
+    for (var i=0; i<this.triangle_vertices.length; i++) {
       var tv = this.triangle_vertices[i];
       this.shadow.triangle_vertices.push( [tv[0], tv[1], tv[2]] );
+      this.shadow.triangle_face_upright.push( R3_triangle_face_upright( this.shadow.vertex_locations, tv ) );
+      this.shadow.edges_to_triangles[ [tv[0], tv[1]] ] = [i,0];
+      this.shadow.edges_to_triangles[ [tv[1], tv[2]] ] = [i,1];
+      this.shadow.edges_to_triangles[ [tv[2], tv[0]] ] = [i,2];
     }
+    //console.log(this.shadow.triangle_face_upright);
+    //console.log(this.shadow.edges_to_triangles);
+    //Create the boundary edges so that they all are on the top triangles
     this.shadow.boundary_edges = [];
-    for (var i in graph.edges) {
-      
+    for (var i=0; i<this.shadow.triangle_vertices.length; i++) {
+      var tv = this.shadow.triangle_vertices[i];
+      if (!R3_triangle_face_upright(this.shadow.vertex_locations, tv)) continue;
+      for (var j=0; j<3; j++) {
+        var other_triangle = this.shadow.edges_to_triangles[ [tv[(j+1)%3], tv[j]] ][0];
+        if (!this.shadow.triangle_face_upright[other_triangle]) {
+          this.shadow.boundary_edges.push( [tv[j], tv[(j+1)%3]] );
+        }
+      }
     }
 
   }
