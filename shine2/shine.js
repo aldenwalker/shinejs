@@ -69,7 +69,8 @@ function ShineGui() {
                     'view_translation':R3_trans_mat.translate(0,0,0.0),
                     'view_perspective':R3_trans_mat.perspective(4,-4),
                     'lighting_direction':[1,1,0],
-                    'control': {} };
+                    'control': {'button_smooth':document.getElementById('right_control_smooth'),
+                                'button_subdivide':document.getElementById('right_control_subdivide')} };
   this.right_plot.canvas.addEventListener('mousedown', this.right_plot_mouse.bind(this));
   this.right_plot.canvas.addEventListener('mouseup', this.right_plot_mouse.bind(this));
   this.right_plot.canvas.addEventListener('mousemove', this.right_plot_mouse.bind(this));
@@ -77,6 +78,9 @@ function ShineGui() {
   this.right_plot.GL.canvas.addEventListener('DOMMouseScroll', this.right_plot_mouse.bind(this));
   this.right_plot.canvas.addEventListener('mousewheel', this.right_plot_mouse.bind(this));
   this.right_plot.canvas.addEventListener('DOMMouseScroll', this.right_plot_mouse.bind(this));
+
+  this.right_plot.control.button_smooth.onclick = this.smooth_right_plot.bind(this);
+  this.right_plot.control.button_subdivide.onclick = this.subdivide_right_plot.bind(this);
   
   this.surface = undefined;
 
@@ -464,7 +468,13 @@ ShineGui.prototype.redraw_right_plot = function() {
   gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, DD.flat_triangle_vertices_buf);
   gl.drawElements(gl.TRIANGLES, DD.flat_triangle_vertices.length, gl.UNSIGNED_SHORT, 0);
   
-  console.log('GL redraw');
+  var uniform_color = gl.getUniformLocation(shaders, 'u_color');
+  gl.lineWidth(2);
+  gl.uniform3fv(uniform_color, new Float32Array([1,1,1]));
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, DD.flat_edge_vertices_buf);
+  gl.drawElements(gl.LINES, DD.flat_edge_vertices.length, gl.UNSIGNED_SHORT, 0);
+
+  //console.log('GL redraw');
 
   rp.GL.call_count++;
 }
@@ -473,14 +483,14 @@ ShineGui.prototype.redraw_right_plot = function() {
 
 
 
-ShineGui.prototype.create_right_plot = function() {
+ShineGui.prototype.create_right_plot = function(just_vertices, retain_view) {
   if (this.surface == undefined) return;
   var rp = this.right_plot;
   if (!rp.GL.inited) this.init_right_plot();
   
   var T = this.surface.triangulations[this.surface.triangulations.length-1];
   
-  rp.GL.display_data = {};
+  if (just_vertices != true) rp.GL.display_data = {};
   var DD = rp.GL.display_data;
   
   DD.flat_vertex_locations = new Float32Array(3*T.vertex_locations.length);
@@ -497,11 +507,23 @@ ShineGui.prototype.create_right_plot = function() {
     DD.flat_vertex_normals[3*i+2] = T.vertex_normals[i][2];
   }
   
-  DD.flat_triangle_vertices = new Uint16Array(3*T.triangle_vertices.length);
-  for (var i=0; i<T.triangle_vertices.length; i++) {
-    DD.flat_triangle_vertices[3*i] = T.triangle_vertices[i][0];
-    DD.flat_triangle_vertices[3*i+1] = T.triangle_vertices[i][1];
-    DD.flat_triangle_vertices[3*i+2] = T.triangle_vertices[i][2];
+  if (just_vertices != true) {
+    DD.flat_triangle_vertices = new Uint16Array(3*T.triangle_vertices.length);
+    for (var i=0; i<T.triangle_vertices.length; i++) {
+      DD.flat_triangle_vertices[3*i] = T.triangle_vertices[i][0];
+      DD.flat_triangle_vertices[3*i+1] = T.triangle_vertices[i][1];
+      DD.flat_triangle_vertices[3*i+2] = T.triangle_vertices[i][2];
+    }
+
+    DD.flat_edge_vertices = new Uint16Array(6*T.triangle_vertices.length);
+    for (var i=0; i<T.triangle_vertices.length; i++) {
+      DD.flat_edge_vertices[6*i] = T.triangle_vertices[i][0];
+      DD.flat_edge_vertices[6*i+1] = T.triangle_vertices[i][1];
+      DD.flat_edge_vertices[6*i+2] = T.triangle_vertices[i][1];
+      DD.flat_edge_vertices[6*i+3] = T.triangle_vertices[i][2];
+      DD.flat_edge_vertices[6*i+4] = T.triangle_vertices[i][2];
+      DD.flat_edge_vertices[6*i+5] = T.triangle_vertices[i][0];
+    }
   }
     
   var gl = rp.GL.GLC;
@@ -521,16 +543,28 @@ ShineGui.prototype.create_right_plot = function() {
   gl.enableVertexAttribArray(attrib_normal);
   gl.vertexAttribPointer(attrib_normal, 3, gl.FLOAT, false, 0, 0);
 
-  DD.flat_triangle_vertices_buf = gl.createBuffer();
-  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, DD.flat_triangle_vertices_buf);
-  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, DD.flat_triangle_vertices, gl.STATIC_DRAW); 
+  if (just_vertices != true) {
+    DD.flat_triangle_vertices_buf = gl.createBuffer();
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, DD.flat_triangle_vertices_buf);
+    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, DD.flat_triangle_vertices, gl.STATIC_DRAW); 
+    
+    DD.flat_edge_vertices_buf = gl.createBuffer();
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, DD.flat_edge_vertices_buf);
+    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, DD.flat_edge_vertices, gl.STATIC_DRAW); 
+  }
+
+  if (retain_view != true) {
+    console.log('got bbox:', T.bbox);
+    var PS = R3_trans_mat.perspective_and_scale(T.bbox);
+    //rp.view_trans = R3_trans_mat.scale(2/(this.left_plot.width));
+    rp.view_perspective = PS[0];
+    rp.view_trans = PS[1];
+    rp.dragging_view_trans = R3_trans_mat.identity();
+    rp.view_translation = R3_trans_mat.translate(0,0,0);
+  }
   
-  rp.view_trans = R3_trans_mat.scale(2/(this.left_plot.width));
-  rp.dragging_view_trans = R3_trans_mat.identity();
-  rp.view_translation = R3_trans_mat.translate(0,0,0);
-  
-  console.log('Created right plot');
-  console.log(DD);
+  // console.log('Created right plot');
+  // console.log(DD);
 }
 
 
@@ -612,7 +646,7 @@ ShineGui.prototype.right_plot_mouse = function(evt) {
     if (evt.button != 0) return;
     rp.dragging_plot = true;
     rp.dragging_start = [mouse_p_x, mouse_p_y];
-    console.log('start right drag');
+    //console.log('start right drag');
     return;
   } else if (evt.type == 'mouseup') {
     if (evt.button != 0) return;
@@ -620,7 +654,7 @@ ShineGui.prototype.right_plot_mouse = function(evt) {
     rp.view_trans = rp.dragging_view_trans.compose(rp.view_trans);
     rp.dragging_view_trans = R3_trans_mat.identity();
     this.redraw_right_plot();
-    console.log('stop right drag');
+    //console.log('stop right drag');
     return;
   }
   //if we are dragging the plot, and we got a mousemove, 
@@ -650,8 +684,17 @@ ShineGui.prototype.right_plot_mouse = function(evt) {
 }
 
 
+ShineGui.prototype.smooth_right_plot = function() {
+  this.surface.smooth();
+  this.create_right_plot(true, true);
+  this.redraw_right_plot();
+}
 
-
+ShineGui.prototype.subdivide_right_plot = function() {
+  this.surface.subdivide();
+  this.create_right_plot(false, true);
+  this.redraw_right_plot();
+}
 
 
 

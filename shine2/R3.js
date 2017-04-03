@@ -9,6 +9,10 @@ function R3_sub(p0, p1) {
   return [p0[0] - p1[0], p0[1] - p1[1], p0[2] - p1[2] ];
 }
 
+function R3_mean(a, b) {
+  return [ 0.5*(a[0] + b[0]), 0.5*(a[1] + b[1]), 0.5*(a[2] + b[2]) ];
+}
+
 function R3_triangle_face_upright(vert_locs, tri) {
   var cross_prod_z =  (vert_locs[tri[1]][0]-vert_locs[tri[0]][0])*(vert_locs[tri[2]][1]-vert_locs[tri[1]][1])
                      -(vert_locs[tri[1]][1]-vert_locs[tri[0]][1])*(vert_locs[tri[2]][0]-vert_locs[tri[1]][0]);
@@ -39,7 +43,11 @@ function R3_acc_inplace(a, b) {
   a[2] += b[2];
 }
 
-
+function R3_combine_inplace(a, a_factor, b, b_factor) {
+  a[0] = a_factor * a[0] + b_factor * b[0];
+  a[1] = a_factor * a[1] + b_factor * b[1];
+  a[2] = a_factor * a[2] + b_factor * b[2];
+}
 
 
 
@@ -85,6 +93,61 @@ R3_trans_mat.perspective = function(near, far) {
                               0, 0, 1, -0.5,
                               0, 0, 1, 1] );
 }
+
+R3_trans_mat.perspective_and_scale = function(bbox) {
+  //Decide on reasonable perspective and scale
+  //transformations for the given bbox
+  var xrange = bbox[1][0] - bbox[0][0];
+  var xcenter = 0.5*(bbox[1][0] + bbox[0][0]);
+  var yrange = bbox[1][1] - bbox[0][1];
+  var ycenter = 0.5*(bbox[1][1] + bbox[0][1]);
+  var zrange = bbox[1][2] - bbox[0][2];
+  var zcenter = 0.5*(bbox[1][2] + bbox[0][2]);
+
+
+  console.log('ranges:', xrange, yrange, zrange);
+
+  //First we translate the centers to 0,0,0
+  var pre_trans = R3_trans_mat.translate(-xcenter, -ycenter, -zcenter);
+
+  //Now we assume the range is the box centered at 0,0,0
+
+  //The middle of the frustum must support xy_max
+  var f_middle_dim = Math.max(xrange, yrange);
+
+  //The front must support the minimum of zy_max and xz_max
+  var f_front_dim = Math.min(Math.max(xrange, zrange), Math.max(yrange, zrange));
+
+  if (f_front_dim > f_middle_dim) {
+    console.log("I'm confused about front vs middle dim");
+  }
+
+  //The depth is the largest of x,y,z ranges
+  var f_depth = Math.max(xrange, yrange, zrange);
+
+  //Map the frustum to [-1,1]x[-1,1]x[-1,0]
+
+  var XYS = 2/f_middle_dim;
+  var ZS = 1/(f_depth);
+  var wscaling = f_front_dim / f_middle_dim;
+
+  console.log(f_middle_dim, f_front_dim, f_depth);
+  console.log(XYS, ZS, wscaling);
+
+  //We want to get w so that it's 1 at z=0 and f_front_dim/f_middle_dim at z=f_depth/2
+  //Also shift so the frustum is centered at 0,0,-0.5
+  var Wfactor = ((f_front_dim/f_middle_dim)-1) / (f_depth/2);
+  var P = new R3_trans_mat( [ XYS,   0,  0,    0,
+                                0, XYS,  0,    0,
+                                0,   0, ZS*(1-Wfactor), 0,
+                                0,   0, -Wfactor, 1 ] );
+  console.log( ((f_front_dim/f_middle_dim)-1) / (f_depth/2) );
+  var post_trans = R3_trans_mat.translate(0,0,-0.5);
+  var ans = post_trans.compose(P.compose(pre_trans));
+  var S = R3_trans_mat.identity();
+  return [P,S];
+}
+
 
 R3_trans_mat.prototype.compose = function(other) {
   var t = this.M;
@@ -141,7 +204,13 @@ function R3Surface(graph) {
   
 }
 
+R3Surface.prototype.smooth = function() {
+  this.triangulations[this.triangulations.length-1].smooth();
+}
 
+R3Surface.prototype.subdivide = function() {
+  this.triangulations.push(this.triangulations[this.triangulations.length-1].subdivide());
+}
 
 
 function R3Triangulation(graph, radius, create_shadow) {
@@ -245,35 +314,16 @@ function R3Triangulation(graph, radius, create_shadow) {
     }
   }
 
-  this.edges_to_triangles = {};  // Maps pairs of vertices to triangle edges
-                                  // note they are ordered, so it returns the triangle for which it's positive
-  for (var i=0; i<this.triangle_vertices.length; i++) {
-    var tv = this.triangle_vertices[i];
-    for (var j=0; j<3; j++) {
-      this.edges_to_triangles[ [tv[j], tv[(j+1)%3]] ] = [i,j];
-    }
-  }
+  //compute the edge data
+  this.recompute_edges();
 
-  //Create the array of vertex normals, which are the average of the
-  //normals of the faces of the incident triangles
-  this.triangle_normals = [];
-  this.vertex_normals = [];
-  for (var i=0; i<this.triangle_vertices.length; i++) {
-    this.triangle_normals[i] = R3_triangle_normal( this.vertex_locations, this.triangle_vertices[i] );
-    for (var j=0; j<3; j++) {
-      var vi = this.triangle_vertices[i][j];
-      if (this.vertex_normals[vi] == undefined) {
-        this.vertex_normals[vi] = this.triangle_normals[i].slice(0);
-      } else {
-        R3_acc_inplace( this.vertex_normals[vi], this.triangle_normals[i] );
-      }
-    }
-  }
-  for (var i=0; i<this.vertex_normals.length; i++) {
-    R3_normalize_inplace(this.vertex_normals[i]);
-    //console.log('Vertex normal', this.vertex_normals[i], 'at', this.vertex_locations[i]);
-  }
+  //Compute the triangle and vertex normals
+  this.recompute_normals();
 
+  //Compute the 3d box containing the surface
+  this.recompute_bbox();
+
+  //Create the shadow of the surface
   if (create_shadow) {
     this.shadow = {};
     this.shadow.vertex_locations = [];
@@ -311,6 +361,189 @@ function R3Triangulation(graph, radius, create_shadow) {
 
   }
 }
+
+
+R3Triangulation.create_blank = function() {
+  return new R3Triangulation({'edges':[], 'vertices':[]}, 0, false);
+}
+
+R3Triangulation.prototype.copy = function() {
+  var T = R3Triangulation.create_blank();
+  for (var i=0; i<this.vertex_locations.length; i++) {
+    T.vertex_locations[i] = this.vertex_locations[i].slice();
+  }
+  for (var i=0; i<this.vertex_normals.length; i++) {
+    T.vertex_normals[i] = this.vertex_normals[i].slice();
+  }
+  for (var i=0; i<this.triangle_vertices.length; i++) {
+    T.triangle_vertices[i] = this.triangle_vertices[i].slice();
+  }
+  for (var i=0; i<this.triangle_edges.length; i++) {
+    T.triangle_edges[i] = this.triangle_edges[i].slice();
+  }
+  T.edge_lookup = {};
+  for (var i=0; i<this.edges.length; i++) {
+    T.edges[i] = this.edges[i].slice();
+    var vi0 = this.edges[i][0];
+    var vi1 = this.edges[i][1];
+    T.edge_lookup[ [vi0, vi1] ] = i+1;
+    T.edge_lookup[ [vi1, vi0] ] = -(i+1);
+  }
+  T.bbox = [ this.bbox[0].slice(), this.bbox[1].slice() ];
+
+  //Doesn't copy the shadow?
+  return T;
+}
+
+
+R3Triangulation.prototype.recompute_bbox = function() {
+  if (this.vertex_locations.length == 0) {
+    this.bbox = [ [], [] ];
+    return;
+  }
+  this.bbox = [ this.vertex_locations[0].slice(), this.vertex_locations[0].slice() ];
+  var bb = this.bbox;
+  for (var i=1; i<this.vertex_locations.length; i++) {
+    var vl = this.vertex_locations[i];
+    if (vl[0] < bb[0][0]) bb[0][0] = vl[0];
+    if (vl[1] < bb[0][1]) bb[0][1] = vl[1];
+    if (vl[2] < bb[0][2]) bb[0][2] = vl[2];
+    if (vl[0] > bb[1][0]) bb[1][0] = vl[0];
+    if (vl[1] > bb[1][1]) bb[1][1] = vl[1];
+    if (vl[2] > bb[1][2]) bb[1][2] = vl[2];
+  }
+}
+
+
+
+R3Triangulation.prototype.recompute_normals = function() {
+  //Create the array of vertex normals, which are the average of the
+  //normals of the faces of the incident triangles
+  this.triangle_normals = [];
+  this.vertex_normals = [];
+  for (var i=0; i<this.triangle_vertices.length; i++) {
+    this.triangle_normals[i] = R3_triangle_normal( this.vertex_locations, this.triangle_vertices[i] );
+    for (var j=0; j<3; j++) {
+      var vi = this.triangle_vertices[i][j];
+      if (this.vertex_normals[vi] == undefined) {
+        this.vertex_normals[vi] = this.triangle_normals[i].slice(0);
+      } else {
+        R3_acc_inplace( this.vertex_normals[vi], this.triangle_normals[i] );
+      }
+    }
+  }
+  for (var i=0; i<this.vertex_normals.length; i++) {
+    R3_normalize_inplace(this.vertex_normals[i]);
+    //console.log('Vertex normal', this.vertex_normals[i], 'at', this.vertex_locations[i]);
+  }
+}
+
+
+R3Triangulation.prototype.recompute_edges = function() {
+  this.edges = [];
+  this.edge_lookup = {}; //a list which maps pairs of vertices to indices
+  this.triangle_edges = [];
+  for (var i=0; i<this.triangle_vertices.length; i++) {
+    this.triangle_edges[i] = [];
+    for (var j=0; j<3; j++) {
+      var vi0 = this.triangle_vertices[i][j];
+      var vi1 = this.triangle_vertices[i][(j+1)%3];
+      var ei = this.edge_lookup[ [vi0,vi1] ];
+      if (ei === undefined) {
+        this.edge_lookup[ [vi0, vi1] ] = this.edges.length+1;
+        this.edge_lookup[ [vi1, vi0] ] = -(this.edges.length+1);
+        ei = this.edges.length+1;
+        this.edges.push( [vi0, vi1, i, j] );
+      } else {
+        if (ei > 0) {
+          console.log("I don't think this can happen");
+          console.log('i,j:', i,j);
+          console.log('my vertices:', this.triangle_vertices[i]);
+          console.log('edges:', this.edges);
+          console.log('edge lookup:', this.edge_lookup);
+        } else {
+          this.edges[ -ei-1 ][4] = i;
+          this.edges[ -ei-1 ][5] = j;
+        }
+      }
+      this.triangle_edges[i][j] = ei; 
+    }
+  }
+}
+
+
+
+R3Triangulation.prototype.smooth = function() {
+  var vertex_sums = [];
+  var vertex_sum_counts = [];
+  for (var i=0; i<this.edges.length; i++) {
+    var vi0 = this.edges[i][0];
+    var vi1 = this.edges[i][1];
+    if (vertex_sums[vi0] === undefined) {
+      vertex_sums[vi0] = this.vertex_locations[vi1].slice(0);
+      vertex_sum_counts[vi0] = 1;
+    } else {
+      R3_acc_inplace(vertex_sums[vi0], this.vertex_locations[vi1]);
+      vertex_sum_counts[vi0]++;
+    }
+    if (vertex_sums[vi1] === undefined) {
+      vertex_sums[vi1] = this.vertex_locations[vi0].slice(0);
+      vertex_sum_counts[vi1] = 1;
+    } else {
+      R3_acc_inplace(vertex_sums[vi1], this.vertex_locations[vi0]);
+      vertex_sum_counts[vi1]++;
+    }
+  }
+  for (var i=0; i<this.vertex_locations.length; i++) {
+    R3_combine_inplace(this.vertex_locations[i], 0.9, vertex_sums[i], 0.1/vertex_sum_counts[i]);
+  }
+}
+
+
+
+
+
+R3Triangulation.prototype.subdivide = function() {
+  var T = this.copy();
+  //Add in a vertex for every edge
+  var old_num_vertices = T.vertex_locations.length;
+  for (var i=0; i<T.edges.length; i++) {
+    T.vertex_locations[old_num_vertices + i] = R3_mean(T.vertex_locations[T.edges[i][0]],
+                                                       T.vertex_locations[T.edges[i][1]]);
+  }
+  var new_triangle_vertices = [];
+  //Replace each triangle with 4 new ones
+  for (var i=0; i<T.triangle_vertices.length; i++) {
+    var tvi = T.triangle_vertices[i];
+    var tei = T.triangle_edges[i];
+    var nv = [ old_num_vertices + Math.abs(tei[0])-1,
+               old_num_vertices + Math.abs(tei[1])-1,
+               old_num_vertices + Math.abs(tei[2])-1 ];
+    new_triangle_vertices.push( [ tvi[0], nv[0], nv[2] ],
+                                [ tvi[1], nv[1], nv[0] ],
+                                [ tvi[2], nv[2], nv[1] ],
+                                [ nv[0],  nv[1], nv[2] ] );
+  }
+  T.triangle_vertices = new_triangle_vertices;
+
+  //compute the edge data
+  T.recompute_edges();
+
+  //Compute the triangle and vertex normals
+  T.recompute_normals();
+
+  return T;
+}
+
+
+
+
+
+
+
+
+
+
 
 
 
