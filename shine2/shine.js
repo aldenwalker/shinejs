@@ -52,8 +52,20 @@ function ShineGui() {
                         'GL': {'canvas': document.getElementById('left_gl_plot_canvas'),
                                 'inited':false,
                                 'call_count':0},
-                        'control': {} };
+                        'control': {'radio_side_top': document.getElementById('left_radio_side_top'),
+                                    'radio_side_bottom': document.getElementById('left_radio_side_bottom'),
+                                    'button_cancel':document.getElementById('left_button_path_cancel')},
+                        'input_path':undefined,
+                        'upside':undefined,
+                        'snap_distance':0.1 };
   this.left_plot.CC = this.left_plot.canvas.getContext('2d');
+  this.left_plot.control.radio_side_top.onclick = this.side_from_html.bind(this);
+  this.left_plot.control.radio_side_bottom.onclick = this.side_from_html.bind(this);
+  this.left_plot.control.button_cancel.onclick = this.cancel_path.bind(this);
+  this.side_from_html();
+  this.left_plot.canvas.addEventListener('mousedown', this.left_plot_mouse.bind(this));
+  this.left_plot.canvas.addEventListener('mouseup', this.left_plot_mouse.bind(this));
+  this.left_plot.canvas.addEventListener('mousemove', this.left_plot_mouse.bind(this));
 
   this.right_plot = {'canvas': document.getElementById('right_plot_canvas'),
                     'ul': new R2Point(-3, 3),
@@ -83,7 +95,13 @@ function ShineGui() {
   this.right_plot.control.button_subdivide.onclick = this.subdivide_right_plot.bind(this);
   
   this.surface = undefined;
-
+  
+  this.curve_list = {};
+  this.curve_list.curve_info_template = document.getElementById('curve_info_template');
+  this.curve_list.curve_list_html = document.getElementById('curve_list');
+  this.curve_list.curve_list = [];
+  
+  
   // for (var i=0; i<2; i++) {
   //   plots[i].canvas.addEventListener('mousedown', this.canvas_mouse.bind(this));
   //   plots[i].canvas.addEventListener('mouseup', this.canvas_mouse.bind(this));
@@ -158,6 +176,11 @@ ShineGui.prototype.pixel_to_R2 = function(X, p) {
                       X.ul.y - (p.y / X.scale_to_pixels) );
 }
 
+ShineGui.prototype.pixelxy_to_R2 = function(X, px, py) {
+  return new R2Point( X.ul.x + (px / X.scale_to_pixels),
+                       X.ul.y - (py / X.scale_to_pixels) );
+}
+
 ShineGui.prototype.xy_to_pixel = function(X, x, y) {
   return new Pixel( (x - X.ul.x) * X.scale_to_pixels,
                     -(y - X.ul.y) * X.scale_to_pixels );
@@ -167,6 +190,9 @@ ShineGui.prototype.R2_to_pixel = function(X, c) {
   return new Pixel( (c.x - X.ul.x) * X.scale_to_pixels,
                     -(c.y - X.ul.y) * X.scale_to_pixels );
 }
+
+
+
 
 
 
@@ -399,7 +425,19 @@ ShineGui.prototype.load_new_surface = function() {
 
 
 
-ShineGui.prototype.redraw_left_plot = function() {
+
+
+
+
+
+
+
+
+
+
+
+
+ShineGui.prototype.redraw_left_plot = function(mouse_loc) {
   var lp = this.left_plot;
   lp.CC.clearRect(0,0,lp.canvas.width,lp.canvas.height);
   
@@ -409,10 +447,11 @@ ShineGui.prototype.redraw_left_plot = function() {
   
   var s = this.surface.triangulations[0].shadow;
   
+  //Draw the boundary edges
   lp.CC.strokeStyle = '#000000';
   lp.CC.lineWidth = 3;
   for (var i=0; i<s.boundary_edges.length; i++) {
-    var e = s.boundary_edges[i];
+    var e = s.edges[s.boundary_edges[i]];
     var v0 = s.vertex_locations[e[0]];
     var v1 = s.vertex_locations[e[1]];
     var p0 = this.xy_to_pixel(lp, v0[0], v0[1]);
@@ -422,8 +461,199 @@ ShineGui.prototype.redraw_left_plot = function() {
     lp.CC.lineTo( p1.x, p1.y );
     lp.CC.stroke();
   }
-
+  
+  //Draw the paths already on the surface
+  
+  //Draw the current path, or just the mouse if not defined
+  if (lp.input_path === undefined) {
+    if (!(mouse_loc===undefined)) {
+      var p1 = this.R2_to_pixel(lp, mouse_loc);
+      lp.CC.fillStyle = 'rgba(0,0,255,0.5)';
+      lp.CC.beginPath();
+      lp.CC.moveTo( p1.x, p1.y );
+      lp.CC.arc( p1.x, p1.y, 4, 0, 2*Math.PI);
+      lp.CC.fill();
+    }
+  } else {
+    lp.CC.lineWidth = 2;
+    for (var i=0; i<lp.input_path.length; i++) {
+      var IP = lp.input_path[i];
+      var side = IP[0];
+      var alpha = (side == lp.upside ? 1 : 0.3);
+      lp.CC.strokeStyle = 'rgba(0,0,255,' + alpha + ')';
+      lp.CC.fillStyle = 'rgba(0,0,255,' + alpha + ')';
+      var p0 = undefined;
+      if (IP[1][0] == 'point') {
+        p0 = this.R2_to_pixel(lp, IP[1][1]);
+      } else {
+        var e = s.edges[IP[1][1]];
+        var p0_real = R2_interpolate_segment_xyxy(IP[1][2], s.vertex_locations[e[0]][0], s.vertex_locations[e[0]][1],
+                                                             s.vertex_locations[e[1]][0], s.vertex_locations[e[1]][1]);
+        p0 = this.R2_to_pixel(lp, p0_real);
+      }
+      var p1 = undefined;
+      if (IP[2] != undefined) {
+        if (IP[2][0] == 'point') {
+          p1 = this.R2_to_pixel(lp, IP[2][1]);
+        } else {
+          var e = s.edges[IP[2][1]];
+          var p1_real = R2_interpolate_segment_xyxy(IP[2][2], s.vertex_locations[e[0]][0], s.vertex_locations[e[0]][1],
+                                                               s.vertex_locations[e[1]][0], s.vertex_locations[e[1]][1]);
+          p1 = this.R2_to_pixel(lp, p1_real);
+        }
+      }
+      
+      lp.CC.beginPath();
+      lp.CC.moveTo( p0.x, p0.y );
+      lp.CC.arc( p0.x, p0.y, 4, 0, 2*Math.PI);
+      lp.CC.fill();
+      if (p1 != undefined) {
+        lp.CC.beginPath();
+        lp.CC.moveTo( p1.x, p1.y );
+        lp.CC.arc( p1.x, p1.y, 4, 0, 2*Math.PI);
+        lp.CC.fill();
+        lp.CC.beginPath();
+        lp.CC.moveTo( p0.x, p0.y );
+        lp.CC.lineTo( p1.x, p1.y );
+        lp.CC.stroke();
+      }
+    }
+    
+    //if we have mouse coordinates, draw a line to it
+    if (mouse_loc != undefined) {
+      //draw the path
+      var IP = lp.input_path[lp.input_path.length-1];
+      var side = IP[0];
+      var alpha = (side == lp.upside ? 1 : 0.3);
+      lp.CC.strokeStyle = 'rgba(0,0,255,' + alpha + ')'
+      lp.CC.fillStyle = 'rgba(0,0,255,' + alpha + ')'
+      var p0 = undefined;
+      if (IP[1][0] == 'point') {
+        p0 = this.R2_to_pixel(lp, IP[1][1]);
+      } else {
+        var e = s.edges[IP[1][1]];
+        p0_real = R2_interpolate_segment_xyxy(IP[1][2], s.vertex_locations[e[0]][0], s.vertex_locations[e[0]][1],
+                                                        s.vertex_locations[e[1]][0], s.vertex_locations[e[1]][1]);
+        p0 = this.R2_to_pixel(lp, p0_real);
+      }
+      var p1 = this.R2_to_pixel(lp, mouse_loc);
+      if (mouse_loc.dist(lp.input_path[0][1][1]) < lp.snap_distance) {
+        lp.CC.fillStyle = 'rgba(255,0,255,' + alpha + ')';
+      } else if ( this.surface.find_closest_shadow_boundary(mouse_loc, lp.snap_distance) != undefined) {
+        lp.CC.fillStyle = 'rgba(0,255,0,' + alpha + ')';
+      }
+      lp.CC.beginPath();
+      lp.CC.moveTo( p0.x, p0.y );
+      lp.CC.lineTo( p1.x, p1.y );
+      lp.CC.stroke();
+      lp.CC.beginPath();
+      lp.CC.moveTo( p1.x, p1.y );
+      lp.CC.arc( p1.x, p1.y, 4, 0, 2*Math.PI);
+      lp.CC.fill();
+    }
+  }
+  
 }
+
+
+ShineGui.prototype.left_plot_mouse = function(evt) {
+  var lp = this.left_plot;
+  var canvas_rect = lp.canvas.getBoundingClientRect();
+  var mouse_p_x = evt.clientX - canvas_rect.left;
+  var mouse_p_y = evt.clientY - canvas_rect.top;
+  var mouse_real = this.pixelxy_to_R2(lp, mouse_p_x, mouse_p_y);
+  if (evt.type == 'mousemove') {
+    this.redraw_left_plot(mouse_real);
+    return;
+  }
+  
+  if (evt.type == 'mousedown') {
+    return;
+  }
+  
+  if (evt.type == 'mouseup') {
+    if (evt.button != 0) return;
+    if (lp.input_path === undefined) {
+      lp.input_path = [ [lp.upside, ['point', mouse_real]] ];
+      this.redraw_left_plot();
+      return;
+    } else {
+      //If we're within a small distance of the beginning, finish the path
+      if (lp.upside == lp.input_path[0][0] && mouse_real.dist(lp.input_path[0][1][1]) < lp.snap_distance) {
+        lp.input_path[lp.input_path.length-1][2] = ['point', lp.input_path[0][1][1].copy()];
+        var id = this.surface.add_curve(lp.input_path);
+        this.add_curve(id);
+        lp.input_path = undefined;
+        this.redraw_left_plot();
+        return;
+      }
+      //If we're within a small distance of a boundary edge, round to the edge
+      //and flip the upside
+      var ce = this.surface.find_closest_shadow_boundary(mouse_real, lp.snap_distance);
+      if (ce != undefined) {
+        var s = this.surface.triangulations[0].shadow;
+        var vi0 = s.edges[ce][0];
+        var v0p = new R2Point(s.vertex_locations[vi0][0], s.vertex_locations[vi0][1]);
+        var vi1 = s.edges[ce][1];
+        var v1p = new R2Point(s.vertex_locations[vi1][0], s.vertex_locations[vi1][1]);
+        var edge_t = R2_project_segment_t(mouse_real, v0p, v1p);
+        console.log('Rounding', mouse_real, 'to edge', ce, ':', vi0, v0p, vi1, v1p, edge_t);
+        if (edge_t < 0 || edge_t > 1) {
+          console.log('unexpected edge_t');
+        }
+        lp.input_path[lp.input_path.length-1][2] = ['edge', ce, edge_t];
+        lp.upside = (lp.upside == 'top' ? 'bottom' : 'top');
+        this.side_to_html();
+        lp.input_path.push( [lp.upside, ['edge', ce, edge_t]] );
+        this.redraw_left_plot();
+        return;
+      }
+      //Otherwise, just make a new point
+      lp.input_path[lp.input_path.length-1][2] = ['point', mouse_real.copy()];
+      lp.input_path.push( [lp.upside, ['point', mouse_real.copy()]] );
+      this.redraw_left_plot();
+      return;
+    }
+  }
+}
+
+
+
+
+ShineGui.prototype.cancel_path = function() {
+  this.left_plot.input_path = undefined;
+  this.redraw_left_plot();
+}
+
+
+ShineGui.prototype.side_from_html = function() {
+  this.left_plot.upside = (this.left_plot.control.radio_side_top.checked ? 'top' : 'bottom');
+  this.redraw_left_plot();
+}
+
+ShineGui.prototype.side_to_html = function() {
+  this.left_plot.control.radio_side_top.checked = (this.left_plot.upside == 'top');
+  this.left_plot.control.radio_side_bottom.checked = (this.left_plot.upside == 'bottom');
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 ShineGui.prototype.redraw_right_plot = function() {
   var rp = this.right_plot;
@@ -709,6 +939,64 @@ ShineGui.prototype.subdivide_right_plot = function() {
 
 
 
+
+
+
+
+
+
+
+ShineGui.prototype.add_curve = function(curve_id) {
+  var curve_data = {'node': this.curve_list.curve_info_template.cloneNode(true)};
+  curve_data.id = curve_id;
+  curve_data.name = String(curve_data.id);
+  var o_name = curve_data.name;
+  
+  //Now fix all the cloned object's IDs
+  curve_data.node.id = o_name;
+  var all_elements = curve_data.node.getElementsByTagName('*');
+  for (var i=0; i<all_elements.length; i++) {
+    var e = all_elements[i];
+    if (e.id != '') {
+      e.id = o_name + e.id;
+    }
+  }
+  
+  //Add it to the list and display it
+  curve_data.node.style.display = 'block';
+  this.curve_list.curve_list.push(curve_data);
+  this.curve_list.curve_list_html.appendChild(curve_data.node);
+  var namenode = document.createTextNode(o_name);
+  document.getElementById(o_name + 'template-name').appendChild(namenode);
+  document.getElementById(o_name + 'template-delete').onclick = this.delete_curve.bind(this);
+  document.getElementById(o_name + 'template-update').onclick = this.update_curve.bind(this);
+}
+
+
+ShineGui.prototype.delete_curve = function(evt) {
+  //Figure out which curve initiated it
+  for (var i=0; i<this.curve_list.curve_list.length; i++) {
+    if (this.curve_list.curve_list[i].node.contains(evt.target)) {
+      this.surface.delete_curve(this.curve_list.curve_list[i].id);
+      this.curve_list.curve_list_html.removeChild(this.curve_list.curve_list[i].node);
+      this.curve_list.curve_list.splice(i,1);
+      break;
+    }
+  }
+  this.redraw_left_plot();
+  this.redraw_right_plot();
+}
+
+ShineGui.prototype.update_curve = function(evt) {
+  //Figure out which curve initiated it
+  for (var i=0; i<this.curve_list.curve_list.length; i++) {
+    if (this.curve_list.curve_list[i].node.contains(evt.target)) {
+      break;
+    }
+  }
+  this.redraw_left_plot();
+  this.redraw_right_plot();
+}
 
 
 

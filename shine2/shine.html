@@ -128,8 +128,16 @@ Nope.
 <br class='clear'>
 
 <div class='input'>
-<div class='input_label'>Mouse location:</div>
-<div class='input_input'> <span id='left_mouse_location'></span>
+<div class='input_label'>Current side up:</div>
+<div class='input_input'> <input type='radio' name='radio_side' id='left_radio_side_top' checked>Top
+                          <input type='radio' name='radio_side' id='left_radio_side_bottom'>Bottom
+</div>
+</div>
+<br class='clear'>
+
+<div class='input'>
+<div class='input_label'>Cancel current path drawing:</div>
+<div class='input_input'> <button type='button' id='left_button_path_cancel'>Cancel</button>
 </div>
 </div>
 <br class='clear'>
@@ -163,6 +171,18 @@ Nope.
 
 
 
+<div class='boxleft' id='curve_info_box>
+<hr>
+<div class='input'>
+<div class='input_label'><h3>Curves:</h3></div>
+</div>
+<br class='clear'>
+<div id='curve_list' class='obj-list'>
+</div>
+
+</div>
+
+<br class='clear'>
 
 
 
@@ -182,6 +202,48 @@ Nope.
 </div>
 
 </div> <!--content-->
+
+
+
+
+
+
+
+<!-- this is a template for the curve data -->
+<div id='curve_info_template' class='obj-info-template' style='display:none;'>
+
+<div class='input'>
+<div class='input_label' id='template-name'></div>
+<div class='input_input'><button type='button' id='template-delete'>Delete</button>
+                         <button type='button' id='template-update'>Redraw</button></div>
+</div>
+<br class='clear'>
+
+<div class='input'>
+<div class='input_label'>Selected:</div>
+<div class='input_input'><input type='checkbox' id='template-selected'></div>
+</div>
+<br class='clear'>
+
+<div class='input'>
+<div class='input_label'>Visible:</div>
+<div class='input_input'><input type='checkbox' id='template-visible' checked></div>
+</div>
+<br class='clear'>
+
+<div class='input'>
+<div class='input_label'>Color:</div>
+<div class='input_input'><input type='color' value='#ff0000' id='template-color'></div>
+</div>
+<br class='clear'>
+
+</div>
+
+
+
+
+
+
 
 
 <!-- this is a tiny separate javascript for page layout -->

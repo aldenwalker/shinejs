@@ -11,6 +11,12 @@ R2Point.prototype.sub = function(p) {
   return new R2Point(this.x - p.x, this.y - p.y);
 }
 
+R2Point.prototype.dist = function(p) {
+  var dx = p.x - this.x;
+  var dy = p.y - this.y;
+  return Math.sqrt(dx*dx + dy*dy);
+}
+
 R2Point.prototype.angle = function() {
   return Math.atan2(this.y, this.x);
 }
@@ -67,6 +73,34 @@ function R2_distance_to_segment(p, a0, a1) {
   var ptp = a1t.scalar_mul(scalar);
   var diff = pt.sub(ptp);
   return diff.norm();
+}
+
+function R2_distance_to_segment_xyxy_tol(p, x0, y0, x1, y1, tol) {
+  var a0 = new R2Point(x0,y0);
+  var a1 = new R2Point(x1,y1);
+  var d = a0.dist(a1);
+  if (a0.dist(p) > d + tol || a1.dist(p) > d + tol) {
+    return undefined;
+  }
+  var real_dist = R2_distance_to_segment(p, a0, a1);
+  if (real_dist < tol) return real_dist;
+  else return undefined;
+}
+
+
+function R2_interpolate_segment_xyxy(t, x0, y0, x1, y1) {
+  var dx = x1-x0;
+  var dy = y1-y0;
+  return new R2Point(x0 + t*dx, y0 + t*dy);
+}
+
+function R2_project_segment_t(p, a0, a1) {
+  //translate so a0 is at the origin
+  var pt = p.sub(a0);
+  var a1t = a1.sub(a0);
+  //project pt to the span of a1t
+  var scalar = pt.dot(a1t)/a1t.dot(a1t);
+  return scalar;
 }
 
 

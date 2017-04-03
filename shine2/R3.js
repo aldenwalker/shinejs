@@ -105,7 +105,7 @@ R3_trans_mat.perspective_and_scale = function(bbox) {
   var zcenter = 0.5*(bbox[1][2] + bbox[0][2]);
 
 
-  console.log('ranges:', xrange, yrange, zrange);
+  //console.log('ranges:', xrange, yrange, zrange);
 
   //First we translate the centers to 0,0,0
   var pre_trans = R3_trans_mat.translate(-xcenter, -ycenter, -zcenter);
@@ -131,8 +131,8 @@ R3_trans_mat.perspective_and_scale = function(bbox) {
   var ZS = 1/(f_depth);
   var wscaling = f_front_dim / f_middle_dim;
 
-  console.log(f_middle_dim, f_front_dim, f_depth);
-  console.log(XYS, ZS, wscaling);
+  //console.log(f_middle_dim, f_front_dim, f_depth);
+  //console.log(XYS, ZS, wscaling);
 
   //We want to get w so that it's 1 at z=0 and f_front_dim/f_middle_dim at z=f_depth/2
   //Also shift so the frustum is centered at 0,0,-0.5
@@ -141,7 +141,7 @@ R3_trans_mat.perspective_and_scale = function(bbox) {
                                 0, XYS,  0,    0,
                                 0,   0, ZS*(1-Wfactor), 0,
                                 0,   0, -Wfactor, 1 ] );
-  console.log( ((f_front_dim/f_middle_dim)-1) / (f_depth/2) );
+  //console.log( ((f_front_dim/f_middle_dim)-1) / (f_depth/2) );
   var post_trans = R3_trans_mat.translate(0,0,-0.5);
   var ans = post_trans.compose(P.compose(pre_trans));
   var S = R3_trans_mat.identity();
@@ -202,6 +202,8 @@ function R3Surface(graph) {
   
   this.triangulations = [new R3Triangulation(this.core_graph, tube_radius, true)];
   
+  this.curves = [];
+  
 }
 
 R3Surface.prototype.smooth = function() {
@@ -211,6 +213,45 @@ R3Surface.prototype.smooth = function() {
 R3Surface.prototype.subdivide = function() {
   this.triangulations.push(this.triangulations[this.triangulations.length-1].subdivide());
 }
+
+
+R3Surface.prototype.find_closest_shadow_boundary = function(p, dist_tol) {
+  if (this.triangulations[0].shadow === undefined) {
+    console.log('Shadow undefined?');
+  }
+  
+  var s = this.triangulations[0].shadow;
+  var closest_dist = undefined;
+  var closest_i = undefined;
+  //console.log('Finding edge closest to', p, 'tol:', tol);
+  for (var i=0; i<s.boundary_edges.length; i++) {
+    var vi0 = s.edges[s.boundary_edges[i]][0];
+    var vi1 = s.edges[s.boundary_edges[i]][1];
+    var dist = R2_distance_to_segment_xyxy_tol(p, s.vertex_locations[vi0][0], s.vertex_locations[vi0][1],
+                                                  s.vertex_locations[vi1][0], s.vertex_locations[vi1][1], dist_tol);
+    if (dist != undefined) {
+      if (closest_dist === undefined || dist < closest_dist) {
+        closest_dist = dist;
+        closest_i = i;
+      }
+    }
+  }
+  return s.boundary_edges[closest_i]; 
+}
+
+
+
+R3Surface.prototype.add_curve = function(curve_data) {
+  this.curves.push([]);
+  return this.curves.length-1;
+}
+
+R3Surface.prototype.delete_curve = function(curve_id) {
+  this.curves[curve_id] = undefined;
+}
+
+
+
 
 
 function R3Triangulation(graph, radius, create_shadow) {
@@ -325,41 +366,25 @@ function R3Triangulation(graph, radius, create_shadow) {
 
   //Create the shadow of the surface
   if (create_shadow) {
-    this.shadow = {};
-    this.shadow.vertex_locations = [];
-    for (var i=0; i<this.vertex_locations.length; i++) {
-      var vl = this.vertex_locations[i];
-      this.shadow.vertex_locations.push( [vl[0], vl[1], 0] );
+    this.shadow = this.copy();
+    var s = this.shadow;
+    for (var i=0; i<s.vertex_locations.length; i++) {
+      s.vertex_locations[i][2] = 0;
     }
-    this.shadow.triangle_vertices = [];
-    this.shadow.triangle_face_upright = [];
-    this.shadow.edges_to_triangles = {};
-    for (var i=0; i<this.triangle_vertices.length; i++) {
-      var tv = this.triangle_vertices[i];
-      this.shadow.triangle_vertices.push( [tv[0], tv[1], tv[2]] );
-      this.shadow.triangle_face_upright.push( R3_triangle_face_upright( this.shadow.vertex_locations, tv ) );
-      this.shadow.edges_to_triangles[ [tv[0], tv[1]] ] = [i,0];
-      this.shadow.edges_to_triangles[ [tv[1], tv[2]] ] = [i,1];
-      this.shadow.edges_to_triangles[ [tv[2], tv[0]] ] = [i,2];
+    
+    s.recompute_normals();
+    
+    s.boundary_edges = [];
+    for (var i=0; i<s.edges.length; i++) {
+      if (s.edges[i][2] === undefined || s.edges[i][4] === undefined) continue;
+      var tnz0 = s.triangle_normals[ s.edges[i][2] ][2];
+      var tnz1 = s.triangle_normals[ s.edges[i][4] ][2];
+      if ( tnz0*tnz1 > 0 ) continue;
+      
+      s.boundary_edges.push(i);
     }
-    //console.log(this.shadow.triangle_face_upright);
-    //console.log(this.shadow.edges_to_triangles);
-    //Create the boundary edges so that they all are on the top triangles
-    this.shadow.boundary_edges = [];
-    for (var i=0; i<this.shadow.triangle_vertices.length; i++) {
-      var tv = this.shadow.triangle_vertices[i];
-      if (!R3_triangle_face_upright(this.shadow.vertex_locations, tv)) continue;
-      for (var j=0; j<3; j++) {
-        var other_triangle = this.shadow.edges_to_triangles[ [tv[(j+1)%3], tv[j]] ]
-        if (other_triangle == undefined) continue;
-        other_triangle = other_triangle[0];
-        if (!this.shadow.triangle_face_upright[other_triangle]) {
-          this.shadow.boundary_edges.push( [tv[j], tv[(j+1)%3]] );
-        }
-      }
-    }
-
   }
+  
 }
 
 
