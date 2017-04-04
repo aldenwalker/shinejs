@@ -590,65 +590,86 @@ R3Triangulation.prototype.process_curve_input = function(C) {
   var s = this.shadow;
   var ans = [];
   var i=0;
+  var A = C[0][1];
+  var B = C[0][2];
+  var side = C[0][0];
   var current_triangle = undefined;
-  var current_point = undefined;
+  if (A[0] != 'point') {
+    console.log("Can't start on an edge");
+    return;
+  } else {
+    current_triangle = this.find_shadow_triangle(side, A[1]);
+  }
+  var current_point = A[1];
   var end_point = undefined;
+  var end_triangle = undefined;
+  if (B[0] == 'point') {
+    end_point = B[1];
+    end_triangle = this.find_shadow_triangle(side, B[1]);
+  } else {
+    var e = s.edges[B[1]];
+    end_point = R2_interpolate_segment_xyxy(B[2], s.vertex_locations[e[0]][0], s.vertex_locations[e[0]][1],
+                                                  s.vertex_locations[e[1]][0], s.vertex_locations[e[1]][1]);
+    end_triangle = this.find_adjacent_shadow_triangle(e, side);
+  }
+  
   while (true) {
-    var side = C[i][0];
-    var A = C[i][1];
-    var B = C[i][2];
-    if (current_triangle === undefined && A[0] == 'edge') {
-      console.log("Error; I don't know where to start");
-    }
-    if (A[0] == 'point') {
-      var current_triangle = this.find_shadow_triangle(side, A[1]);
-      var current_point = A[1];
-    } else {
-      var e = s.edges[A[1]];
-      var current_point = R2_interpolate_segment_xyxy(A[2], s.vertex_locations[e[0]][0], s.vertex_locations[e[0]][1],
-                                                            s.vertex_locations[e[1]][0], s.vertex_locations[e[1]][1]);
-    }
-    if (B[0] == 'point') {
-      var current_triangle = this.find_shadow_triangle(side, A[1]);
-      var current_point = A[1];
-    } else {
-      var e = s.edges[A[1]];
-      var current_point = R2_interpolate_segment_xyxy(A[2], s.vertex_locations[e[0]][0], s.vertex_locations[e[0]][1],
-                                                            s.vertex_locations[e[1]][0], s.vertex_locations[e[1]][1]);
-    }
-
-
-  }
-
-
-  for (var i=0; i<C.length; i++) {
-  	var current_point = undefined;
-    var end_point = undefined;
-    var side = C[i][0];
-    var A = C[i][1];
-    var B = C[i][2];
-    if (B[0] == 'point') {
-      end_point = B[1];
-    } else {
-      var e = s.edges[B[1]];
-      var end_point = R2_interpolate_segment_xyxy(B[2], s.vertex_locations[e[0]][0], s.vertex_locations[e[0]][1],
-                                                            s.vertex_locations[e[1]][0], s.vertex_locations[e[1]][1]);
-    }
-    while (true) {}
-    	if (A[0] == 'point') {
-    		current_point = A[1];
-    	} else {
-        var e = s.edges[A[1]];
-        current_point = R2_interpolate_segment_xyxy(A[2], s.vertex_locations[e[0]][0], s.vertex_locations[e[0]][1],
-                                                           s.vertex_locations[e[1]][0], s.vertex_locations[e[1]][1]);
+    //Find the next intersection
+    var tv = s.triangle_vertices[current_triangle];
+    var R2_tv = [ new R2Point( s.vertex_locations[tv[0]][0], s.vertex_locations[tv[0]][1] ),
+                  new R2Point( s.vertex_locations[tv[1]][0], s.vertex_locations[tv[1]][1] ),
+                  new R2Point( s.vertex_locations[tv[2]][0], s.vertex_locations[tv[2]][1] ) ]
+    var tei = R2_triangle_intersection(current_point, R2_tv, end_point);
+    var ste = s.triangle_edges[current_triangle][tei[0]];
+    var e_sign = (1 if ste > 0 else -1);
+    var e_ind = e_sign*ste-1;
+    var next_triangle = s.edges[e_ind][ (e_sign>0 ? 2 : 4) ];
+    ans.push( [ste, (e_sign>0 ? tei[1] : 1-tei[1])] );
+    
+    if (next_triangle != end_triangle) {
+      current_triangle = next_triangle;
+      current_point = s.sign_edge_interpolate( ans[ans.length-1] );
+    
+    } else {  //if (next_triangle == end_triangle) {
+      //NEXT STEP
+      if (i == C.length-1) break;
+      
+      if (B[0] == 'edge') {
+        //Push on this edge with the correct sign
+        var e = s.edges[B[1]];
+        if (e[2] == end_triangle) {
+          ans.push( [B[1]+1, B[2]] );
+        } else {
+          ans.push( [-(B[1]+1), B[2]] );
+        }
+        //Find the next triangle
+        side = (side == 'top' ? 'bottom' : 'top');
+        next_triangle = this.find_adjacent_shadow_triangle(e, side);
       }
-
+      current_triangle = next_triangle;
+      current_point = s.sign_edge_interpolate( ans[ans.length-1] );
+      A = B;
+      i += 1;
+      B = C[i][2];
+      if (B[0] == 'point') {
+        end_point = B[1];
+        end_triangle = this.find_shadow_triangle(side, B[1]);
+      } else {
+        var e = s.edges[B[1]];
+        end_point = R2_interpolate_segment_xyxy(B[2], s.vertex_locations[e[0]][0], s.vertex_locations[e[0]][1],
+                                                      s.vertex_locations[e[1]][0], s.vertex_locations[e[1]][1]);
+        end_triangle = this.find_adjacent_shadow_triangle(e, side);
+      }
     }
-
+    
+    
+    
   }
-
-  return [];
+  return ans;
 }
+
+
+
 
 R3Triangulation.prototype.subdivide_curve = function(C) {
   return [];
