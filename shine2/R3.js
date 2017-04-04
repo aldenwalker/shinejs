@@ -176,6 +176,13 @@ R3_trans_mat.prototype.transpose = function() {
 
 
 
+
+
+
+
+
+
+
 function R3Surface(graph) {
   if (graph.vertices.length == 0) {
     alert('You appear to have created an empty surface');
@@ -212,6 +219,11 @@ R3Surface.prototype.smooth = function() {
 
 R3Surface.prototype.subdivide = function() {
   this.triangulations.push(this.triangulations[this.triangulations.length-1].subdivide());
+  for (var i=0; i<this.curves.length; i++) {
+    if (this.curves[i] === undefined) continue;
+    var prev_curve = this.curves[i][this.curves[i].length-1];
+    this.curves[i].push( this.triangulations[this.triangulations.length-1].subdivide_curve(prev_curve) );
+  }
 }
 
 
@@ -242,13 +254,20 @@ R3Surface.prototype.find_closest_shadow_boundary = function(p, dist_tol) {
 
 
 R3Surface.prototype.add_curve = function(curve_data) {
-  this.curves.push([]);
+  var ans = [this.triangulations[0].process_curve_input(curve_data)];
+  for (var i=1; i<this.triangulations.length; i++) {
+    ans.push( this.triangulations[i].subdivide_curve( ans[ans.length-1] ) );
+  }
+  this.curves.push(ans);
   return this.curves.length-1;
 }
 
 R3Surface.prototype.delete_curve = function(curve_id) {
   this.curves[curve_id] = undefined;
 }
+
+
+
 
 
 
@@ -562,7 +581,24 @@ R3Triangulation.prototype.subdivide = function() {
 
 
 
+R3Triangulation.prototype.process_curve_input = function(C) {
+  //console.log('processing', C)
+  if (this.shadow === undefined) {
+    console.log("Can't process curve input without shadow");
+    return undefined;
+  }
 
+  var ans = [];
+  for (var i=0; i<C.length; i++) {
+    
+  }
+
+  return [];
+}
+
+R3Triangulation.prototype.subdivide_curve = function(C) {
+  return [];
+}
 
 
 

@@ -581,8 +581,7 @@ ShineGui.prototype.left_plot_mouse = function(evt) {
       //If we're within a small distance of the beginning, finish the path
       if (lp.upside == lp.input_path[0][0] && mouse_real.dist(lp.input_path[0][1][1]) < lp.snap_distance) {
         lp.input_path[lp.input_path.length-1][2] = ['point', lp.input_path[0][1][1].copy()];
-        var id = this.surface.add_curve(lp.input_path);
-        this.add_curve(id);
+        this.add_curve(lp.input_path);
         lp.input_path = undefined;
         this.redraw_left_plot();
         return;
@@ -946,7 +945,8 @@ ShineGui.prototype.subdivide_right_plot = function() {
 
 
 
-ShineGui.prototype.add_curve = function(curve_id) {
+ShineGui.prototype.add_curve = function(path) {
+  var curve_id = this.surface.add_curve(path);
   var curve_data = {'node': this.curve_list.curve_info_template.cloneNode(true)};
   curve_data.id = curve_id;
   curve_data.name = String(curve_data.id);
