@@ -587,10 +587,64 @@ R3Triangulation.prototype.process_curve_input = function(C) {
     console.log("Can't process curve input without shadow");
     return undefined;
   }
-
+  var s = this.shadow;
   var ans = [];
+  var i=0;
+  var current_triangle = undefined;
+  var current_point = undefined;
+  var end_point = undefined;
+  while (true) {
+    var side = C[i][0];
+    var A = C[i][1];
+    var B = C[i][2];
+    if (current_triangle === undefined && A[0] == 'edge') {
+      console.log("Error; I don't know where to start");
+    }
+    if (A[0] == 'point') {
+      var current_triangle = this.find_shadow_triangle(side, A[1]);
+      var current_point = A[1];
+    } else {
+      var e = s.edges[A[1]];
+      var current_point = R2_interpolate_segment_xyxy(A[2], s.vertex_locations[e[0]][0], s.vertex_locations[e[0]][1],
+                                                            s.vertex_locations[e[1]][0], s.vertex_locations[e[1]][1]);
+    }
+    if (B[0] == 'point') {
+      var current_triangle = this.find_shadow_triangle(side, A[1]);
+      var current_point = A[1];
+    } else {
+      var e = s.edges[A[1]];
+      var current_point = R2_interpolate_segment_xyxy(A[2], s.vertex_locations[e[0]][0], s.vertex_locations[e[0]][1],
+                                                            s.vertex_locations[e[1]][0], s.vertex_locations[e[1]][1]);
+    }
+
+
+  }
+
+
   for (var i=0; i<C.length; i++) {
-    
+  	var current_point = undefined;
+    var end_point = undefined;
+    var side = C[i][0];
+    var A = C[i][1];
+    var B = C[i][2];
+    if (B[0] == 'point') {
+      end_point = B[1];
+    } else {
+      var e = s.edges[B[1]];
+      var end_point = R2_interpolate_segment_xyxy(B[2], s.vertex_locations[e[0]][0], s.vertex_locations[e[0]][1],
+                                                            s.vertex_locations[e[1]][0], s.vertex_locations[e[1]][1]);
+    }
+    while (true) {}
+    	if (A[0] == 'point') {
+    		current_point = A[1];
+    	} else {
+        var e = s.edges[A[1]];
+        current_point = R2_interpolate_segment_xyxy(A[2], s.vertex_locations[e[0]][0], s.vertex_locations[e[0]][1],
+                                                           s.vertex_locations[e[1]][0], s.vertex_locations[e[1]][1]);
+      }
+
+    }
+
   }
 
   return [];
