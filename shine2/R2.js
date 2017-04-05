@@ -52,6 +52,10 @@ R2Point.prototype.norm = function() {
   return Math.sqrt(this.x*this.x + this.y*this.y);;
 }
 
+R2Point.prototype.perp = function() {
+  return new R2Point(-this.y, this.x);
+}
+
 R2Point.prototype.as_array = function() {
   return [this.x, this.y];
 }
@@ -101,6 +105,50 @@ function R2_project_segment_t(p, a0, a1) {
   //project pt to the span of a1t
   var scalar = pt.dot(a1t)/a1t.dot(a1t);
   return scalar;
+}
+
+function R2_segment_intersection(a, b, c, d) {
+  //Return the t-values of the intersection point between a->b and c->d
+  var M = [ b.x-a.x, c.x-d.x, b.y-a.y, c.y-d.y ];
+  var det = M[0]*M[3] - M[1]*M[2];
+  if (det == 0) {
+    return undefined;
+  }
+  var MI = [ M[3], -M[1], -M[2], M[0] ];
+  var ca = [ c.x-a.x, c.y-a.y ];
+  var ans = [ (1/det) * (MI[0]*ca[0] + MI[1]*ca[1]),  (1/det) * (MI[2]*ca[0] + MI[3]*ca[1]) ];
+  return ans;
+}
+
+function R2_triangle_intersection(current_point, verts, end_point) {
+  console.log("Finding triangle intersection", current_point, verts, end_point);
+  for (var i=0; i<3; i++) {
+    var si = R2_segment_intersection(current_point, end_point, verts[i], verts[(i+1)%3]);
+    console.log(i,si);
+    if (si != undefined && si[0] > 1e-7 && 0 <= si[1] && si[1] <= 1 ) {
+      return [i, si[1]];
+    }
+  }
+  console.log("I don't think I should be here");
+  return -1;
+}
+
+
+function R2_triangle_contains(verts, p) {
+  var perp0 = verts[1].sub(verts[0]).perp();
+  if ( p.sub(verts[0]).dot(perp0) * verts[2].sub(verts[0]).dot(perp0) < 0 ) {
+    return false;
+  }
+  var perp1 = verts[2].sub(verts[1]).perp();
+  if ( p.sub(verts[1]).dot(perp1) * verts[0].sub(verts[1]).dot(perp1) < 0 ) {
+    return false;
+  }
+  var perp2 = verts[0].sub(verts[2]).perp();
+  if ( p.sub(verts[2]).dot(perp2) * verts[1].sub(verts[2]).dot(perp2) < 0 ) {
+    return false;
+  }
+  console.log(p, 'is in triangle', verts);
+  return true;
 }
 
 

@@ -447,6 +447,22 @@ ShineGui.prototype.redraw_left_plot = function(mouse_loc) {
   
   var s = this.surface.triangulations[0].shadow;
   
+  //Draw the triangle edges
+  lp.CC.strokeStyle = '#000000';
+  lp.CC.lineWidth = 1;
+  for (var i=0; i<s.edges.length; i++) {
+    var e = s.edges[i];
+    if (s.triangle_normals[e[2]][2] < 0) continue;
+    var v0 = s.vertex_locations[e[0]];
+    var v1 = s.vertex_locations[e[1]];
+    var p0 = this.xy_to_pixel(lp, v0[0], v0[1]);
+    var p1 = this.xy_to_pixel(lp, v1[0], v1[1]);
+    lp.CC.beginPath();
+    lp.CC.moveTo( p0.x, p0.y );
+    lp.CC.lineTo( p1.x, p1.y );
+    lp.CC.stroke();
+  }
+
   //Draw the boundary edges
   lp.CC.strokeStyle = '#000000';
   lp.CC.lineWidth = 3;

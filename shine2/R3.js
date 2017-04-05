@@ -581,6 +581,12 @@ R3Triangulation.prototype.subdivide = function() {
 
 
 
+
+
+
+
+
+
 R3Triangulation.prototype.process_curve_input = function(C) {
   //console.log('processing', C)
   if (this.shadow === undefined) {
@@ -621,14 +627,14 @@ R3Triangulation.prototype.process_curve_input = function(C) {
                   new R2Point( s.vertex_locations[tv[2]][0], s.vertex_locations[tv[2]][1] ) ]
     var tei = R2_triangle_intersection(current_point, R2_tv, end_point);
     var ste = s.triangle_edges[current_triangle][tei[0]];
-    var e_sign = (1 if ste > 0 else -1);
+    var e_sign = (ste > 0 ? 1 : -1);
     var e_ind = e_sign*ste-1;
-    var next_triangle = s.edges[e_ind][ (e_sign>0 ? 2 : 4) ];
+    var next_triangle = s.edges[e_ind][ (e_sign>0 ? 4 : 2) ]; //Note if sign is >0 then we need to look on the OTHER side
     ans.push( [ste, (e_sign>0 ? tei[1] : 1-tei[1])] );
     
     if (next_triangle != end_triangle) {
       current_triangle = next_triangle;
-      current_point = s.sign_edge_interpolate( ans[ans.length-1] );
+      current_point = this.shadow_signed_edge_interpolate( ans[ans.length-1] );
     
     } else {  //if (next_triangle == end_triangle) {
       //NEXT STEP
@@ -647,7 +653,7 @@ R3Triangulation.prototype.process_curve_input = function(C) {
         next_triangle = this.find_adjacent_shadow_triangle(e, side);
       }
       current_triangle = next_triangle;
-      current_point = s.sign_edge_interpolate( ans[ans.length-1] );
+      current_point = this.shadow_signed_edge_interpolate( ans[ans.length-1] );
       A = B;
       i += 1;
       B = C[i][2];
@@ -661,12 +667,61 @@ R3Triangulation.prototype.process_curve_input = function(C) {
         end_triangle = this.find_adjacent_shadow_triangle(e, side);
       }
     }
-    
-    
-    
+    console.log('Current curve:', ans);
+    console.log('current_triangle', current_triangle);
+    console.log('current_point', current_point);
+    console.log('end_triangle', end_triangle);
+    console.log('end_point', end_point);
+
   }
+  console.log('Returning curve:', ans);
   return ans;
 }
+
+
+R3Triangulation.prototype.shadow_signed_edge_interpolate = function(se) {
+  var s = this.shadow;
+  var e = s.edges[Math.abs(se[0])-1];
+  return R2_interpolate_segment_xyxy(se[1], s.vertex_locations[e[0]][0], s.vertex_locations[e[0]][1],
+                                            s.vertex_locations[e[1]][0], s.vertex_locations[e[1]][1]);
+}
+
+
+R3Triangulation.prototype.find_shadow_triangle = function(side, p) {
+  var s = this.shadow;
+  for (var i=0; i<s.triangle_vertices.length; i++) {
+    var t_side = (s.triangle_normals[i][2] > 0 ? 'top' : 'bottom');
+    var tv = s.triangle_vertices[i];
+    if (side != t_side) continue;
+    var R2_tv =  [new R2Point( s.vertex_locations[tv[0]][0], s.vertex_locations[tv[0]][1] ),
+                  new R2Point( s.vertex_locations[tv[1]][0], s.vertex_locations[tv[1]][1] ),
+                  new R2Point( s.vertex_locations[tv[2]][0], s.vertex_locations[tv[2]][1] ) ];
+    if (R2_triangle_contains(R2_tv, p)) return i;
+  }
+  console.log("I should have been able to find a triangle");
+  return -1;
+}
+
+
+
+R3Triangulation.prototype.find_adjacent_shadow_triangle = function(edge, side) {
+  var ti0 = edge[2];
+  var ti1 = edge[4];
+  var s = this.shadow;
+  var ti0_side = ( (ti0 != undefined) ? (s.triangle_normals[ti0][2]>0 ? 'top' : 'bottom') : undefined);
+  if (ti0_side != undefined && side == ti0_side ) {
+    return ti0;
+  }
+  var ti1_side = ( (ti1 != undefined) ? (s.triangle_normals[ti1][2]>0 ? 'top' : 'bottom') : undefined);
+  if (ti1_side != undefined && side == ti1_side) {
+    return ti1;
+  }
+  console.log("I shouldn't be here");
+  return undefined;
+}
+
+
+
 
 
 
