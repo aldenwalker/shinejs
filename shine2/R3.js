@@ -49,7 +49,35 @@ function R3_combine_inplace(a, a_factor, b, b_factor) {
   a[2] = a_factor * a[2] + b_factor * b[2];
 }
 
-
+//Return a list of triples (subtri, side, t) for all the edges
+//the segment from side0,t0 to side1,t1 passes through
+//this *includes* the first intersection, but does not include
+//the last (side1,t1) itself
+//
+//the subtri i has its first vertex (and side) at vertex i of the parent
+//it assume the subdivision is into halves
+function R3_subdivide_triangle_segment(side0, t0, side1, t1) {
+  var start_subtri = (t0 <= 0.5 ? side0 : (side0+1)%3);
+  var end_subtri = (t1 <= 0.5 ? side1 : (side1+1)%3);
+  var ans = ( t0 <= 0.5 ? [ [ side0, -1, 2*t0 ] ] : [ [ (side0+1)%3, -3, t0-0.5 ] ]);
+  if (start_subtri == end_subtri) {
+    //No crossings
+    return ans;
+  }
+  //Otherwise, there are some; we first leave the start subtri
+  //then we enter the end_subtri
+  var model_tri = [ new R2Point(0,0), new R2Point(1,0), new R2Point(0,1) ];
+  var model_start = R2_interpolate_segment(t0, model_tri[side0], model_tri[(side0+1)%3]);
+  var model_end = R2_interpolate_segment(t1, model_tri[side1], model_tri[(side1+1)%3]);
+  var model_middles = [ [new R2Point(0,0.5), new R2Point(0.5,0)],
+                        [new R2Point(0.5,0), new R2Point(0.5,0.5)],
+                        [new R2Point(0.5,0.5), new R2Point(0,0.5)] ];
+  var start_t = R2_segment_intersection(model_start, model_end, model_middles[side0][0], model_middles[side0][1]);
+  var end_t = R2_segment_intersection(model_start, model_end, model_middles[side1][0], model_middles[side1][1]);
+  ans.push( [ start_subtri, 2, start_t] );
+  ans.push( [ end_subtri, -2, end_t] );
+  return ans;
+}
 
 
 
@@ -556,6 +584,8 @@ R3Triangulation.prototype.subdivide = function() {
                                                        T.vertex_locations[T.edges[i][1]]);
   }
   var new_triangle_vertices = [];
+  T.parent_triangle_mapping = [];
+  T.parent = this;
   //Replace each triangle with 4 new ones
   for (var i=0; i<T.triangle_vertices.length; i++) {
     var tvi = T.triangle_vertices[i];
@@ -563,10 +593,12 @@ R3Triangulation.prototype.subdivide = function() {
     var nv = [ old_num_vertices + Math.abs(tei[0])-1,
                old_num_vertices + Math.abs(tei[1])-1,
                old_num_vertices + Math.abs(tei[2])-1 ];
+    var N = new_triangle_vertices.length;
     new_triangle_vertices.push( [ tvi[0], nv[0], nv[2] ],
                                 [ tvi[1], nv[1], nv[0] ],
                                 [ tvi[2], nv[2], nv[1] ],
                                 [ nv[0],  nv[1], nv[2] ] );
+    T.parent_triangle_mapping[i] = [ N, N+1, N+2, N+3 ];
   }
   T.triangle_vertices = new_triangle_vertices;
 
@@ -575,7 +607,7 @@ R3Triangulation.prototype.subdivide = function() {
 
   //Compute the triangle and vertex normals
   T.recompute_normals();
-
+  
   return T;
 }
 
@@ -620,17 +652,23 @@ R3Triangulation.prototype.process_curve_input = function(C) {
   }
   
   while (true) {
-    //Find the next intersection
-    var tv = s.triangle_vertices[current_triangle];
-    var R2_tv = [ new R2Point( s.vertex_locations[tv[0]][0], s.vertex_locations[tv[0]][1] ),
-                  new R2Point( s.vertex_locations[tv[1]][0], s.vertex_locations[tv[1]][1] ),
-                  new R2Point( s.vertex_locations[tv[2]][0], s.vertex_locations[tv[2]][1] ) ]
-    var tei = R2_triangle_intersection(current_point, R2_tv, end_point);
-    var ste = s.triangle_edges[current_triangle][tei[0]];
-    var e_sign = (ste > 0 ? 1 : -1);
-    var e_ind = e_sign*ste-1;
-    var next_triangle = s.edges[e_ind][ (e_sign>0 ? 4 : 2) ]; //Note if sign is >0 then we need to look on the OTHER side
-    ans.push( [ste, (e_sign>0 ? tei[1] : 1-tei[1])] );
+    var next_triangle = undefined;
+  
+    if (current_triangle != end_triangle) {
+      //Find the next intersection
+      var tv = s.triangle_vertices[current_triangle];
+      var R2_tv = [ new R2Point( s.vertex_locations[tv[0]][0], s.vertex_locations[tv[0]][1] ),
+                    new R2Point( s.vertex_locations[tv[1]][0], s.vertex_locations[tv[1]][1] ),
+                    new R2Point( s.vertex_locations[tv[2]][0], s.vertex_locations[tv[2]][1] ) ]
+      var tei = R2_triangle_intersection(current_point, R2_tv, end_point);
+      var ste = s.triangle_edges[current_triangle][tei[0]];
+      var e_sign = (ste > 0 ? 1 : -1);
+      var e_ind = e_sign*ste-1;
+      var next_triangle = s.edges[e_ind][ (e_sign>0 ? 4 : 2) ]; //Note if sign is >0 then we need to look on the OTHER side
+      ans.push( [ste, (e_sign>0 ? tei[1] : 1-tei[1]), side] );
+    } else {
+      next_triangle = end_triangle;
+    }
     
     if (next_triangle != end_triangle) {
       current_triangle = next_triangle;
@@ -644,16 +682,18 @@ R3Triangulation.prototype.process_curve_input = function(C) {
         //Push on this edge with the correct sign
         var e = s.edges[B[1]];
         if (e[2] == end_triangle) {
-          ans.push( [B[1]+1, B[2]] );
+          ans.push( [B[1]+1, B[2], side] );
         } else {
-          ans.push( [-(B[1]+1), B[2]] );
+          ans.push( [-(B[1]+1), B[2], side] );
         }
         //Find the next triangle
         side = (side == 'top' ? 'bottom' : 'top');
         next_triangle = this.find_adjacent_shadow_triangle(e, side);
+        current_point = this.shadow_signed_edge_interpolate( ans[ans.length-1] );
+      } else {
+        current_point = B[1];
       }
       current_triangle = next_triangle;
-      current_point = this.shadow_signed_edge_interpolate( ans[ans.length-1] );
       A = B;
       i += 1;
       B = C[i][2];
@@ -727,7 +767,40 @@ R3Triangulation.prototype.find_adjacent_shadow_triangle = function(edge, side) {
 
 
 R3Triangulation.prototype.subdivide_curve = function(C) {
-  return [];
+  //Every segment is within a triangle and goes from one edge to another
+  //This function goes through these segments and for each one, pushes
+  //on all intersections except the last in order
+  var ans = [];
+  var P = this.parent;
+  console.log('Subdividing the curve', C);
+  for (var i=0; i<C.length; i++) {
+    var ip1 = (i+1)%C.length;
+    var ei = Math.abs(C[i][0])-1;
+    var parent_ti_0 = (C[i][0] > 0 ? [P.edges[ei][4], P.edges[ei][5]] : [P.edges[ei][2], P.edges[ei][3]]);
+    ei = Math.abs(C[ip1][0])-1;
+    var parent_ti_1 = (C[ip1][0] > 0 ? [P.edges[ei][2], P.edges[ei][3]] : [P.edges[ei][4], P.edges[ei][5]]);
+    if (parent_ti_0[0] != parent_ti_1[0]) {
+      console.log("I shouldn't be here");
+    }
+    var parent_local_t_0 = (C[i][0] > 0 ? 1-C[i][1] : C[i][1]);
+    var parent_local_t_1 = (C[ip1][0] > 0 ? C[ip1][1] : C[ip1][1]);
+    var parent_local_edge_data = R3_subdivide_triangle_segment(parent_ti_0[1], parent_local_t_0,
+                                                                parent_ti_1[1], parent_local_t_1);
+    var PTM = this.parent_triangle_mapping[parent_ti_0[0]];
+    for (var j=0; j<parent_local_edge_data.length; j++) {
+      var pled = parent_local_edge_data[j];
+      var ti = PTM[pled[0]];
+      var path_signed_local_edge = pled[1];
+      var tri_signed_global_edge = this.triangle_edges[ti][Math.abs(path_signed_local_edge)-1];
+      var path_signed_global_edge = (path_signed_local_edge > 0 ? 1 : -1)*tri_signed_global_edge;
+      var t = pled[2];
+      if (tri_signed_global_edge < 0) t *= -1;
+      ans.push( [path_signed_global_edge, t] );
+    }
+  }
+  console.log("subdivided curve to:", ans);
+  return ans;
+  
 }
 
 

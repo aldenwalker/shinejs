@@ -98,6 +98,12 @@ function R2_interpolate_segment_xyxy(t, x0, y0, x1, y1) {
   return new R2Point(x0 + t*dx, y0 + t*dy);
 }
 
+function R2_interpolate_segment(t, a, b) {
+  var dx = b.x-a.x;
+  var dy = b.y-a.y;
+  return new R2Point(a.x + t*dx, a.x + t*dy);
+}
+
 function R2_project_segment_t(p, a0, a1) {
   //translate so a0 is at the origin
   var pt = p.sub(a0);

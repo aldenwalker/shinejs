@@ -465,7 +465,7 @@ ShineGui.prototype.redraw_left_plot = function(mouse_loc) {
 
   //Draw the boundary edges
   lp.CC.strokeStyle = '#000000';
-  lp.CC.lineWidth = 3;
+  lp.CC.lineWidth = 1;
   for (var i=0; i<s.boundary_edges.length; i++) {
     var e = s.edges[s.boundary_edges[i]];
     var v0 = s.vertex_locations[e[0]];
@@ -479,6 +479,35 @@ ShineGui.prototype.redraw_left_plot = function(mouse_loc) {
   }
   
   //Draw the paths already on the surface
+  for (var i=0; i<this.curve_list.curve_list.length; i++) {
+    var CD = this.curve_list.curve_list[i];
+    if (!CD.visible.checked) continue;
+    lp.CC.lineWidth = 2;
+    var col = CD.color.value;
+    var rgb = [ parseInt(col.substr(1,2),16), parseInt(col.substr(3,2),16), parseInt(col.substr(5,2),16) ];
+    var cid = CD.id;
+    var c = this.surface.curves[cid][0];
+    var pts = [];
+    for (var j=0; j<c.length; j++) {
+      var ei = Math.abs(c[j][0])-1;
+      var e = s.edges[ei];
+      var t = c[j][1];
+      var pt = R2_interpolate_segment_xyxy(t, s.vertex_locations[e[0]][0], s.vertex_locations[e[0]][1],
+                                                s.vertex_locations[e[1]][0], s.vertex_locations[e[1]][1]);
+      var ptp = this.R2_to_pixel(lp, pt);
+      pts[j] = ptp;
+    }
+    for (var j=0; j<c.length; j++) {
+      lp.CC.beginPath();
+      lp.CC.moveTo(pts[j].x, pts[j].y);
+      var jp1 = (j+1)%c.length;
+      lp.CC.lineTo(pts[jp1].x, pts[jp1].y);
+      var alpha = (c[jp1][2] == 'top' ? 1.0 : 0.5);
+      var ss = 'rgba(' + rgb[0] + ',' + rgb[1] + ',' + rgb[2] + ',' + alpha + ')';
+      lp.CC.strokeStyle = ss;
+      lp.CC.stroke();
+    }
+  }
   
   //Draw the current path, or just the mouse if not defined
   if (lp.input_path === undefined) {
@@ -980,8 +1009,12 @@ ShineGui.prototype.add_curve = function(path) {
   
   //Add it to the list and display it
   curve_data.node.style.display = 'block';
-  this.curve_list.curve_list.push(curve_data);
   this.curve_list.curve_list_html.appendChild(curve_data.node);
+  curve_data.selected = document.getElementById(o_name + 'template-selected');
+  curve_data.visible = document.getElementById(o_name + 'template-visible');
+  curve_data.color = document.getElementById(o_name + 'template-color');
+  console.log('Made curve data:', curve_data);
+  this.curve_list.curve_list.push(curve_data);
   var namenode = document.createTextNode(o_name);
   document.getElementById(o_name + 'template-name').appendChild(namenode);
   document.getElementById(o_name + 'template-delete').onclick = this.delete_curve.bind(this);
