@@ -629,6 +629,8 @@ ShineGui.prototype.left_plot_mouse = function(evt) {
         this.add_curve(lp.input_path);
         lp.input_path = undefined;
         this.redraw_left_plot();
+        this.create_right_plot_curves();
+        this.redraw_right_plot();
         return;
       }
       //If we're within a small distance of a boundary edge, round to the edge
@@ -738,21 +740,107 @@ ShineGui.prototype.redraw_right_plot = function() {
   var uniform_color = gl.getUniformLocation(shaders, 'u_color');
   gl.uniform3fv(uniform_color, new Float32Array([0,0,1]));
   
+  var attrib_pos =    gl.getAttribLocation(rp.GL.shaders, 'a_pos');
+  var attrib_normal = gl.getAttribLocation(rp.GL.shaders, 'a_normal');
+
   gl.bindBuffer(gl.ARRAY_BUFFER, DD.flat_vertex_locations_buf);
+  gl.enableVertexAttribArray(attrib_pos);
+  gl.vertexAttribPointer(attrib_pos, 3, gl.FLOAT, false, 0, 0);
+
+  gl.bindBuffer(gl.ARRAY_BUFFER, DD.flat_vertex_normals_buf);
+  gl.enableVertexAttribArray(attrib_normal);
+  gl.vertexAttribPointer(attrib_normal, 3, gl.FLOAT, false, 0, 0);
+
+  // DRAW TRIANGLES
   gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, DD.flat_triangle_vertices_buf);
   gl.drawElements(gl.TRIANGLES, DD.flat_triangle_vertices.length, gl.UNSIGNED_SHORT, 0);
   
+  // DRAW SKELETON
   var uniform_color = gl.getUniformLocation(shaders, 'u_color');
   gl.lineWidth(2);
   gl.uniform3fv(uniform_color, new Float32Array([1,1,1]));
   gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, DD.flat_edge_vertices_buf);
   gl.drawElements(gl.LINES, DD.flat_edge_vertices.length, gl.UNSIGNED_SHORT, 0);
 
+  // DRAW CURVES
+  gl.bindBuffer(gl.ARRAY_BUFFER, DD.flat_curve_vertex_locations_buf);
+  gl.enableVertexAttribArray(attrib_pos);
+  gl.vertexAttribPointer(attrib_pos, 3, gl.FLOAT, false, 0, 0);
+
+  gl.bindBuffer(gl.ARRAY_BUFFER, DD.flat_curve_vertex_normals_buf);
+  gl.enableVertexAttribArray(attrib_normal);
+  gl.vertexAttribPointer(attrib_normal, 3, gl.FLOAT, false, 0, 0);
+
+  gl.lineWidth(4);
+  for (var i=0; i<DD.flat_curve_vertices_bufs.length; i++) {
+    if (!this.curve_list.curve_list[i].visible.checked) continue;
+    var col = this.curve_list.curve_list[i].color.value;
+    var rgb = [ parseInt(col.substr(1,2),16), parseInt(col.substr(3,2),16), parseInt(col.substr(5,2),16) ];
+    rgb = [rgb[0]/256, rgb[1]/256, rgb[2]/256];
+    gl.uniform3fv(uniform_color, new Float32Array(rgb));
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, DD.flat_curve_vertices_bufs[i]);
+    gl.drawElements(gl.LINE_LOOP, DD.flat_curve_vertices[i].length, gl.UNSIGNED_SHORT, 0);
+  }
   //console.log('GL redraw');
 
   rp.GL.call_count++;
 }
 
+
+//Recreate the curve plots
+ShineGui.prototype.create_right_plot_curves = function() {
+  if (this.surface === undefined) return;
+  var rp = this.right_plot;
+  var T = this.surface.triangulations[this.surface.triangulations.length-1];
+  var C = this.surface.curves;
+  var DD = rp.GL.display_data;
+  var total_curve_vertices = 0;
+  for (var i=0; i<C.length; i++) {
+    total_curve_vertices += C[i][C[i].length-1].length;
+  }
+  DD.flat_curve_vertex_locations = new Float32Array(3*total_curve_vertices);
+  DD.flat_curve_vertex_normals = new Float32Array(3*total_curve_vertices);
+  DD.flat_curve_vertices = [];
+  var offset = 0;
+  for (var i=0; i<C.length; i++) {
+    var c = C[i][C[i].length-1];   //Each curve has its subdivision history; we want the latest
+    DD.flat_curve_vertices[i] = new Uint16Array(c.length);
+    //console.log('Creating curve:', c);
+    for (var j=0; j<c.length; j++) {
+      var ei = Math.abs(c[j][0])-1;
+      var e = T.edges[ei];
+      var v = R3_interpolate(c[j][1], T.vertex_locations[e[0]], T.vertex_locations[e[1]]);
+      DD.flat_curve_vertex_locations[3*offset] = v[0];
+      DD.flat_curve_vertex_locations[3*offset+1] = v[1];
+      DD.flat_curve_vertex_locations[3*offset+2] = v[2];
+      var en = T.edge_normals[ei];
+      DD.flat_curve_vertex_normals[3*offset] = en[0];
+      DD.flat_curve_vertex_normals[3*offset+1] = en[1];
+      DD.flat_curve_vertex_normals[3*offset+2] = en[2];
+      DD.flat_curve_vertices[i][j] = offset;
+      offset += 1;
+    }
+  }
+
+  var gl = rp.GL.GLC;
+
+  DD.flat_curve_vertex_locations_buf = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, DD.flat_curve_vertex_locations_buf);
+  gl.bufferData(gl.ARRAY_BUFFER, DD.flat_curve_vertex_locations, gl.STATIC_DRAW);
+  //console.log("I'm loading in vertex locations:", DD.flat_curve_vertex_locations);
+
+  DD.flat_curve_vertex_normals_buf = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, DD.flat_curve_vertex_normals_buf);
+  gl.bufferData(gl.ARRAY_BUFFER, DD.flat_curve_vertex_normals, gl.STATIC_DRAW);
+
+  DD.flat_curve_vertices_bufs = [];
+  for (var i=0; i<C.length; i++) {
+    DD.flat_curve_vertices_bufs[i] = gl.createBuffer();
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, DD.flat_curve_vertices_bufs[i]);
+    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, DD.flat_curve_vertices[i], gl.STATIC_DRAW);
+    //console.log("I'm loading in vertices:", DD.flat_curve_vertices[i]);
+  }
+}
 
 
 
@@ -802,20 +890,13 @@ ShineGui.prototype.create_right_plot = function(just_vertices, retain_view) {
     
   var gl = rp.GL.GLC;
 
-  var attrib_pos =    gl.getAttribLocation(rp.GL.shaders, 'a_pos');
-  var attrib_normal = gl.getAttribLocation(rp.GL.shaders, 'a_normal');
-
   DD.flat_vertex_locations_buf = gl.createBuffer();
   gl.bindBuffer(gl.ARRAY_BUFFER, DD.flat_vertex_locations_buf);
   gl.bufferData(gl.ARRAY_BUFFER, DD.flat_vertex_locations, gl.STATIC_DRAW);
-  gl.enableVertexAttribArray(attrib_pos);
-  gl.vertexAttribPointer(attrib_pos, 3, gl.FLOAT, false, 0, 0);
 
   DD.flat_vertex_normals_buf = gl.createBuffer();
   gl.bindBuffer(gl.ARRAY_BUFFER, DD.flat_vertex_normals_buf);
   gl.bufferData(gl.ARRAY_BUFFER, DD.flat_vertex_normals, gl.STATIC_DRAW);
-  gl.enableVertexAttribArray(attrib_normal);
-  gl.vertexAttribPointer(attrib_normal, 3, gl.FLOAT, false, 0, 0);
 
   if (just_vertices != true) {
     DD.flat_triangle_vertices_buf = gl.createBuffer();
@@ -837,6 +918,8 @@ ShineGui.prototype.create_right_plot = function(just_vertices, retain_view) {
     rp.view_translation = R3_trans_mat.translate(0,0,0);
   }
   
+  this.create_right_plot_curves();
+
   // console.log('Created right plot');
   // console.log(DD);
 }
@@ -904,7 +987,7 @@ window.fragment_shader_source = '' +
 'uniform vec3 u_color;                       \n'+
 'varying vec3 v_light_scale;                 \n'+
 'void main() {                               \n'+
-'  vec3 sc_color = 0.1*u_color + 0.9*v_light_scale*u_color;  \n'+
+'  vec3 sc_color = 0.5*u_color + 0.5*v_light_scale*u_color;  \n'+
 '  gl_FragColor = vec4(sc_color,1.0);        \n'+
 '}                                           \n';
 
@@ -938,7 +1021,7 @@ ShineGui.prototype.right_plot_mouse = function(evt) {
     var drag_pixels_y = mouse_p_y - rp.dragging_start[1];
     var drag_angle_x = 2*(drag_pixels_x / rp.canvas.width);
     var drag_angle_y = 2*(drag_pixels_y / rp.canvas.width);
-    rp.dragging_view_trans = R3_trans_mat.rotate_xy(-drag_angle_y, drag_angle_x);
+    rp.dragging_view_trans = R3_trans_mat.rotate_xy(drag_angle_y, -drag_angle_x);
     //console.log('New dragging trans:', rp.dragging_view_trans);
   }
   
@@ -1033,6 +1116,7 @@ ShineGui.prototype.delete_curve = function(evt) {
     }
   }
   this.redraw_left_plot();
+  this.create_right_plot_curves();
   this.redraw_right_plot();
 }
 

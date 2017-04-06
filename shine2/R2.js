@@ -101,7 +101,7 @@ function R2_interpolate_segment_xyxy(t, x0, y0, x1, y1) {
 function R2_interpolate_segment(t, a, b) {
   var dx = b.x-a.x;
   var dy = b.y-a.y;
-  return new R2Point(a.x + t*dx, a.x + t*dy);
+  return new R2Point(a.x + t*dx, a.y + t*dy);
 }
 
 function R2_project_segment_t(p, a0, a1) {
