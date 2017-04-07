@@ -1,5 +1,11 @@
 "use strict";
 
+function hex_to_rgb_decimal(s) {
+  return [ parseInt(s.substr(1,2),16)/255, parseInt(s.substr(3,2),16)/255, parseInt(s.substr(5,2),16)/255 ];
+}
+
+
+
 /***************************************************************
  * A pixel
  ***************************************************************/
@@ -82,7 +88,11 @@ function ShineGui() {
                     'view_perspective':R3_trans_mat.perspective(4,-4),
                     'lighting_direction':[1,1,0],
                     'control': {'button_smooth':document.getElementById('right_control_smooth'),
-                                'button_subdivide':document.getElementById('right_control_subdivide')} };
+                                'button_subdivide':document.getElementById('right_control_subdivide'),
+                                'checkbox_triangles':document.getElementById('right_control_triangles'),
+                                'color_triangles':document.getElementById('right_control_triangle_color'),
+                                'checkbox_edges':document.getElementById('right_control_edges'),
+                                'color_edges':document.getElementById('right_control_edge_color')} };
   this.right_plot.canvas.addEventListener('mousedown', this.right_plot_mouse.bind(this));
   this.right_plot.canvas.addEventListener('mouseup', this.right_plot_mouse.bind(this));
   this.right_plot.canvas.addEventListener('mousemove', this.right_plot_mouse.bind(this));
@@ -93,6 +103,10 @@ function ShineGui() {
 
   this.right_plot.control.button_smooth.onclick = this.smooth_right_plot.bind(this);
   this.right_plot.control.button_subdivide.onclick = this.subdivide_right_plot.bind(this);
+  this.right_plot.control.checkbox_triangles.onchange = this.redraw_right_plot.bind(this);
+  this.right_plot.control.checkbox_edges.onchange = this.redraw_right_plot.bind(this);
+  this.right_plot.control.color_triangles.onchange = this.redraw_right_plot.bind(this);
+  this.right_plot.control.color_edges.onchange = this.redraw_right_plot.bind(this);
   
   this.surface = undefined;
   
@@ -738,7 +752,6 @@ ShineGui.prototype.redraw_right_plot = function() {
   gl.uniform3fv(uniform_light_dir, new Float32Array(rp.lighting_direction));
   
   var uniform_color = gl.getUniformLocation(shaders, 'u_color');
-  gl.uniform3fv(uniform_color, new Float32Array([0,0,1]));
   
   var attrib_pos =    gl.getAttribLocation(rp.GL.shaders, 'a_pos');
   var attrib_normal = gl.getAttribLocation(rp.GL.shaders, 'a_normal');
@@ -752,15 +765,21 @@ ShineGui.prototype.redraw_right_plot = function() {
   gl.vertexAttribPointer(attrib_normal, 3, gl.FLOAT, false, 0, 0);
 
   // DRAW TRIANGLES
-  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, DD.flat_triangle_vertices_buf);
-  gl.drawElements(gl.TRIANGLES, DD.flat_triangle_vertices.length, gl.UNSIGNED_SHORT, 0);
+  if (rp.control.checkbox_triangles.checked) {
+    var col = hex_to_rgb_decimal(rp.control.color_triangles.value);
+    gl.uniform3fv(uniform_color, new Float32Array(col));
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, DD.flat_triangle_vertices_buf);
+    gl.drawElements(gl.TRIANGLES, DD.flat_triangle_vertices.length, gl.UNSIGNED_SHORT, 0);
+  }
   
   // DRAW SKELETON
-  var uniform_color = gl.getUniformLocation(shaders, 'u_color');
-  gl.lineWidth(2);
-  gl.uniform3fv(uniform_color, new Float32Array([1,1,1]));
-  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, DD.flat_edge_vertices_buf);
-  gl.drawElements(gl.LINES, DD.flat_edge_vertices.length, gl.UNSIGNED_SHORT, 0);
+  if (rp.control.checkbox_edges.checked) {
+    gl.lineWidth(2);
+    var col = hex_to_rgb_decimal(rp.control.color_edges.value);
+    gl.uniform3fv(uniform_color, new Float32Array(col));
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, DD.flat_edge_vertices_buf);
+    gl.drawElements(gl.LINES, DD.flat_edge_vertices.length, gl.UNSIGNED_SHORT, 0);
+  }
 
   // DRAW CURVES
   gl.bindBuffer(gl.ARRAY_BUFFER, DD.flat_curve_vertex_locations_buf);
@@ -775,8 +794,7 @@ ShineGui.prototype.redraw_right_plot = function() {
   for (var i=0; i<DD.flat_curve_vertices_bufs.length; i++) {
     if (!this.curve_list.curve_list[i].visible.checked) continue;
     var col = this.curve_list.curve_list[i].color.value;
-    var rgb = [ parseInt(col.substr(1,2),16), parseInt(col.substr(3,2),16), parseInt(col.substr(5,2),16) ];
-    rgb = [rgb[0]/256, rgb[1]/256, rgb[2]/256];
+    var rgb = hex_to_rgb_decimal(col);
     gl.uniform3fv(uniform_color, new Float32Array(rgb));
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, DD.flat_curve_vertices_bufs[i]);
     gl.drawElements(gl.LINE_LOOP, DD.flat_curve_vertices[i].length, gl.UNSIGNED_SHORT, 0);
@@ -809,11 +827,16 @@ ShineGui.prototype.create_right_plot_curves = function() {
     for (var j=0; j<c.length; j++) {
       var ei = Math.abs(c[j][0])-1;
       var e = T.edges[ei];
-      var v = R3_interpolate(c[j][1], T.vertex_locations[e[0]], T.vertex_locations[e[1]]);
+      var en = T.edge_normals[ei];
+      //var en = T.vertex_normals[e[0]];
+      //var v = R3_interpolate(c[j][1], T.vertex_locations[e[0]], T.vertex_locations[e[1]]);
+      var v = R3_interpolate_3way(1.0*(1-c[j][1]), T.vertex_locations[e[0]],
+                                  1.0*c[j][1],     T.vertex_locations[e[1]],
+                                  0.0,             en);
+      console.log('edge normal', en);
       DD.flat_curve_vertex_locations[3*offset] = v[0];
       DD.flat_curve_vertex_locations[3*offset+1] = v[1];
       DD.flat_curve_vertex_locations[3*offset+2] = v[2];
-      var en = T.edge_normals[ei];
       DD.flat_curve_vertex_normals[3*offset] = en[0];
       DD.flat_curve_vertex_normals[3*offset+1] = en[1];
       DD.flat_curve_vertex_normals[3*offset+2] = en[2];
@@ -961,7 +984,8 @@ ShineGui.prototype.init_right_plot = function() {
   gl.useProgram(rp.GL.shaders);
   
   gl.enable(gl.DEPTH_TEST);
-  gl.disable(gl.CULL_FACE);
+  //gl.disable(gl.CULL_FACE);
+  gl.enable(gl.CULL_FACE);
   
   rp.GL.inited = true;
 }

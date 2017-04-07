@@ -21,6 +21,7 @@ function R3_triangle_face_upright(vert_locs, tri) {
 
 function R3_normalize_inplace(v) {
   var n = Math.sqrt( v[0]*v[0] + v[1]*v[1] + v[2]*v[2] );
+  if (n == 0) return;
   v[0] /= n;
   v[1] /= n;
   v[2] /= n;
@@ -55,6 +56,11 @@ function R3_interpolate(t, v0, v1) {
           t*v1[2] + (1-t)*v0[2]];
 }
 
+function R3_interpolate_3way(t0, v0, t1, v1, t2, v2) {
+  return [ t0*v0[0] + t1*v1[0] + t2*v2[0],
+           t0*v0[1] + t1*v1[1] + t2*v2[1],
+           t0*v0[2] + t1*v1[2] + t2*v2[2] ];
+}
 
 
 //Return a list of triples (subtri, side, t) for all the edges
@@ -428,15 +434,20 @@ function R3Triangulation(graph, radius, create_shadow) {
   //Compute the 3d box containing the surface
   this.recompute_bbox();
 
+  console.log('Created initial triangulation; creating shadow if desired');
+
   //Create the shadow of the surface
   if (create_shadow) {
+    console.log('Yes creating shadow');
     this.shadow = this.copy();
     var s = this.shadow;
     for (var i=0; i<s.vertex_locations.length; i++) {
       s.vertex_locations[i][2] = 0;
     }
     
+    console.log('Recomputing shadow normals');
     s.recompute_normals();
+    console.log('Done');
     
     s.boundary_edges = [];
     for (var i=0; i<s.edges.length; i++) {
@@ -447,7 +458,9 @@ function R3Triangulation(graph, radius, create_shadow) {
       
       s.boundary_edges.push(i);
     }
+    console.log('Done shadow');
   }
+
   
 }
 
@@ -534,6 +547,10 @@ R3Triangulation.prototype.recompute_normals = function() {
     this.edge_normals[i] = R3_mean( this.vertex_normals[e[0]], this.vertex_normals[e[1]] );
     R3_normalize_inplace(this.edge_normals[i]);
   }
+
+  console.log('Computed triangle normals:', this.triangle_normals);
+  console.log('Computed vertex normals:', this.vertex_normals);
+  console.log('Computed edge normals:', this.edge_normals);
 }
 
 
