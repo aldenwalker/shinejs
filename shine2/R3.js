@@ -13,6 +13,23 @@ function R3_mean(a, b) {
   return [ 0.5*(a[0] + b[0]), 0.5*(a[1] + b[1]), 0.5*(a[2] + b[2]) ];
 }
 
+function R3_mean_undefsafe(a, b) {
+	if (a === undefined) {
+		return b.slice(0);
+	} else if (b === undefined) {
+		return a.slice(0);
+	}
+  return [ 0.5*(a[0] + b[0]), 0.5*(a[1] + b[1]), 0.5*(a[2] + b[2]) ];
+}
+
+function R3_dot(a, b) {
+	return a[0]*b[0] + a[1]*b[1] + a[2]*b[2];
+}
+
+function R3_scalar_mul( alpha, v ) {
+	return [alpha*v[0], alpha*v[1], alpha*v[2]];
+}
+
 function R3_triangle_face_upright(vert_locs, tri) {
   var cross_prod_z =  (vert_locs[tri[1]][0]-vert_locs[tri[0]][0])*(vert_locs[tri[2]][1]-vert_locs[tri[1]][1])
                      -(vert_locs[tri[1]][1]-vert_locs[tri[0]][1])*(vert_locs[tri[2]][0]-vert_locs[tri[1]][0]);
@@ -38,10 +55,30 @@ function R3_triangle_normal(vert_locs, tri) {
   return cross_prod;
 }
 
+function R3_triangle_angles(vert_locs, tri) {
+	var diffs = [];
+  for (var i=0; i<3; i++) {
+  	diffs[i] = R3_sub( vert_locs[tri[(i+1)%3]], vert_locs[tri[i]] );
+  	R3_normalize_inplace(diffs[i]);
+  }
+  var ans = [];
+  for (var i=0; i<3; i++) {
+  	var a = Math.acos(R3_dot(diffs[i], diffs[(i+2)%3]));
+  	ans[i] = Math.PI - a;
+  }
+  return ans;
+}
+
 function R3_acc_inplace(a, b) {
   a[0] += b[0];
   a[1] += b[1];
   a[2] += b[2];
+}
+
+function R3_acc_multiple_inplace(a, alpha, b) {
+  a[0] += alpha*b[0];
+  a[1] += alpha*b[1];
+  a[2] += alpha*b[2];
 }
 
 function R3_combine_inplace(a, a_factor, b, b_factor) {
@@ -71,11 +108,11 @@ function R3_interpolate_3way(t0, v0, t1, v1, t2, v2) {
 //the subtri i has its first vertex (and side) at vertex i of the parent
 //it assume the subdivision is into halves
 function R3_subdivide_triangle_segment(side0, t0, side1, t1) {
-  console.log('Subdividing triangle segment', side0, t0, side1, t1);
+  //console.log('Subdividing triangle segment', side0, t0, side1, t1);
   var start_subtri = (t0 <= 0.5 ? side0 : (side0+1)%3);
   var end_subtri = (t1 <= 0.5 ? side1 : (side1+1)%3);
   var ans = ( t0 <= 0.5 ? [ [ side0, -1, 2*t0 ] ] : [ [ (side0+1)%3, -3, 2*(t0-0.5) ] ]);
-  console.log('start,end,ans so far:', start_subtri, end_subtri, ans);
+  //console.log('start,end,ans so far:', start_subtri, end_subtri, ans);
   if (start_subtri == end_subtri) {
     //No crossings
     return ans;
@@ -90,7 +127,7 @@ function R3_subdivide_triangle_segment(side0, t0, side1, t1) {
                         [new R2Point(0,0.5), new R2Point(0.5,0.5)] ];
   var start_t = R2_segment_intersection(model_start, model_end, model_middles[start_subtri][0], model_middles[start_subtri][1])[1];
   var end_t = R2_segment_intersection(model_start, model_end, model_middles[end_subtri][0], model_middles[end_subtri][1])[1];
-  console.log('start_t, end_t', start_t, end_t);
+  //console.log('start_t, end_t', start_t, end_t);
   ans.push( [ start_subtri, 2, start_t ] );
   ans.push( [ end_subtri, -2, end_t ] );
   return ans;
@@ -438,16 +475,16 @@ function R3Triangulation(graph, radius, create_shadow) {
 
   //Create the shadow of the surface
   if (create_shadow) {
-    console.log('Yes creating shadow');
+    //console.log('Yes creating shadow');
     this.shadow = this.copy();
     var s = this.shadow;
     for (var i=0; i<s.vertex_locations.length; i++) {
       s.vertex_locations[i][2] = 0;
     }
     
-    console.log('Recomputing shadow normals');
+    //console.log('Recomputing shadow normals');
     s.recompute_normals();
-    console.log('Done');
+    //console.log('Done');
     
     s.boundary_edges = [];
     for (var i=0; i<s.edges.length; i++) {
@@ -458,7 +495,7 @@ function R3Triangulation(graph, radius, create_shadow) {
       
       s.boundary_edges.push(i);
     }
-    console.log('Done shadow');
+    //console.log('Done shadow');
   }
 
   
@@ -529,12 +566,14 @@ R3Triangulation.prototype.recompute_normals = function() {
   this.edge_normals = [];
   for (var i=0; i<this.triangle_vertices.length; i++) {
     this.triangle_normals[i] = R3_triangle_normal( this.vertex_locations, this.triangle_vertices[i] );
+    var ta = R3_triangle_angles( this.vertex_locations, this.triangle_vertices[i] );
     for (var j=0; j<3; j++) {
       var vi = this.triangle_vertices[i][j];
+      var contribution = R3_scalar_mul( ta[j]/(2*Math.PI), this.triangle_normals[i]);
       if (this.vertex_normals[vi] == undefined) {
-        this.vertex_normals[vi] = this.triangle_normals[i].slice(0);
+        this.vertex_normals[vi] = contribution;
       } else {
-        R3_acc_inplace( this.vertex_normals[vi], this.triangle_normals[i] );
+        R3_acc_inplace( this.vertex_normals[vi], contribution );
       }
     }
   }
@@ -544,13 +583,13 @@ R3Triangulation.prototype.recompute_normals = function() {
   }
   for (var i=0; i<this.edges.length; i++) {
     var e = this.edges[i];
-    this.edge_normals[i] = R3_mean( this.vertex_normals[e[0]], this.vertex_normals[e[1]] );
+    this.edge_normals[i] = R3_mean_undefsafe( this.triangle_normals[e[2]], this.triangle_normals[e[4]] );
     R3_normalize_inplace(this.edge_normals[i]);
   }
 
-  console.log('Computed triangle normals:', this.triangle_normals);
-  console.log('Computed vertex normals:', this.vertex_normals);
-  console.log('Computed edge normals:', this.edge_normals);
+  //console.log('Computed triangle normals:', this.triangle_normals);
+  //console.log('Computed vertex normals:', this.vertex_normals);
+  //console.log('Computed edge normals:', this.edge_normals);
 }
 
 
@@ -754,14 +793,14 @@ R3Triangulation.prototype.process_curve_input = function(C) {
         end_triangle = this.find_adjacent_shadow_triangle(e, side);
       }
     }
-    console.log('Current curve:', ans);
-    console.log('current_triangle', current_triangle);
-    console.log('current_point', current_point);
-    console.log('end_triangle', end_triangle);
-    console.log('end_point', end_point);
+    // console.log('Current curve:', ans);
+    // console.log('current_triangle', current_triangle);
+    // console.log('current_point', current_point);
+    // console.log('end_triangle', end_triangle);
+    // console.log('end_point', end_point);
 
   }
-  console.log('Returning curve:', ans);
+  //console.log('Returning curve:', ans);
   return ans;
 }
 
@@ -819,7 +858,7 @@ R3Triangulation.prototype.subdivide_curve = function(C) {
   //on all intersections except the last in order
   var ans = [];
   var P = this.parent;
-  console.log('Subdividing the curve', C);
+  //console.log('Subdividing the curve', C);
   for (var i=0; i<C.length; i++) {
     var ip1 = (i+1)%C.length;
     var ei = Math.abs(C[i][0])-1;
@@ -839,7 +878,7 @@ R3Triangulation.prototype.subdivide_curve = function(C) {
     var parent_local_edge_data = R3_subdivide_triangle_segment(parent_ti_0[1], parent_local_t_0,
                                                                 parent_ti_1[1], parent_local_t_1);
     var PTM = this.parent_triangle_mapping[parent_ti_0[0]];
-    console.log('Got parent local edge data:', parent_local_edge_data);
+    //console.log('Got parent local edge data:', parent_local_edge_data);
     for (var j=0; j<parent_local_edge_data.length; j++) {
       var pled = parent_local_edge_data[j];
       var ti = PTM[pled[0]];
@@ -851,7 +890,7 @@ R3Triangulation.prototype.subdivide_curve = function(C) {
       ans.push( [path_signed_global_edge, t] );
     }
   }
-  console.log("subdivided curve to:", ans);
+  //console.log("subdivided curve to:", ans);
   return ans;
   
 }

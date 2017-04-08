@@ -127,10 +127,10 @@ function R2_segment_intersection(a, b, c, d) {
 }
 
 function R2_triangle_intersection(current_point, verts, end_point) {
-  console.log("Finding triangle intersection", current_point, verts, end_point);
+  //console.log("Finding triangle intersection", current_point, verts, end_point);
   for (var i=0; i<3; i++) {
     var si = R2_segment_intersection(current_point, end_point, verts[i], verts[(i+1)%3]);
-    console.log(i,si);
+    //console.log(i,si);
     if (si != undefined && si[0] > 1e-7 && 0 <= si[1] && si[1] <= 1 ) {
       return [i, si[1]];
     }
@@ -153,7 +153,7 @@ function R2_triangle_contains(verts, p) {
   if ( p.sub(verts[2]).dot(perp2) * verts[1].sub(verts[2]).dot(perp2) < 0 ) {
     return false;
   }
-  console.log(p, 'is in triangle', verts);
+  //console.log(p, 'is in triangle', verts);
   return true;
 }
 

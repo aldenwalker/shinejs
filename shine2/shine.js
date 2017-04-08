@@ -67,6 +67,8 @@ function ShineGui() {
   this.left_plot.CC = this.left_plot.canvas.getContext('2d');
   this.left_plot.control.radio_side_top.onclick = this.side_from_html.bind(this);
   this.left_plot.control.radio_side_bottom.onclick = this.side_from_html.bind(this);
+  //this.left_plot.control.radio_side_top.onchange = this.side_from_html.bind(this);
+  //this.left_plot.control.radio_side_bottom.onchange = this.side_from_html.bind(this);
   this.left_plot.control.button_cancel.onclick = this.cancel_path.bind(this);
   this.side_from_html();
   this.left_plot.canvas.addEventListener('mousedown', this.left_plot_mouse.bind(this));
@@ -461,21 +463,21 @@ ShineGui.prototype.redraw_left_plot = function(mouse_loc) {
   
   var s = this.surface.triangulations[0].shadow;
   
-  //Draw the triangle edges
-  lp.CC.strokeStyle = '#000000';
-  lp.CC.lineWidth = 1;
-  for (var i=0; i<s.edges.length; i++) {
-    var e = s.edges[i];
-    if (s.triangle_normals[e[2]][2] < 0) continue;
-    var v0 = s.vertex_locations[e[0]];
-    var v1 = s.vertex_locations[e[1]];
-    var p0 = this.xy_to_pixel(lp, v0[0], v0[1]);
-    var p1 = this.xy_to_pixel(lp, v1[0], v1[1]);
-    lp.CC.beginPath();
-    lp.CC.moveTo( p0.x, p0.y );
-    lp.CC.lineTo( p1.x, p1.y );
-    lp.CC.stroke();
-  }
+  // //Draw the triangle edges
+  // lp.CC.strokeStyle = '#000000';
+  // lp.CC.lineWidth = 1;
+  // for (var i=0; i<s.edges.length; i++) {
+  //   var e = s.edges[i];
+  //   if (s.triangle_normals[e[2]][2] < 0) continue;
+  //   var v0 = s.vertex_locations[e[0]];
+  //   var v1 = s.vertex_locations[e[1]];
+  //   var p0 = this.xy_to_pixel(lp, v0[0], v0[1]);
+  //   var p1 = this.xy_to_pixel(lp, v1[0], v1[1]);
+  //   lp.CC.beginPath();
+  //   lp.CC.moveTo( p0.x, p0.y );
+  //   lp.CC.lineTo( p1.x, p1.y );
+  //   lp.CC.stroke();
+  // }
 
   //Draw the boundary edges
   lp.CC.strokeStyle = '#000000';
@@ -516,7 +518,7 @@ ShineGui.prototype.redraw_left_plot = function(mouse_loc) {
       lp.CC.moveTo(pts[j].x, pts[j].y);
       var jp1 = (j+1)%c.length;
       lp.CC.lineTo(pts[jp1].x, pts[jp1].y);
-      var alpha = (c[jp1][2] == 'top' ? 1.0 : 0.5);
+      var alpha = (c[jp1][2] == lp.upside ? 1.0 : 0.3);
       var ss = 'rgba(' + rgb[0] + ',' + rgb[1] + ',' + rgb[2] + ',' + alpha + ')';
       lp.CC.strokeStyle = ss;
       lp.CC.stroke();
@@ -657,7 +659,7 @@ ShineGui.prototype.left_plot_mouse = function(evt) {
         var vi1 = s.edges[ce][1];
         var v1p = new R2Point(s.vertex_locations[vi1][0], s.vertex_locations[vi1][1]);
         var edge_t = R2_project_segment_t(mouse_real, v0p, v1p);
-        console.log('Rounding', mouse_real, 'to edge', ce, ':', vi0, v0p, vi1, v1p, edge_t);
+        //console.log('Rounding', mouse_real, 'to edge', ce, ':', vi0, v0p, vi1, v1p, edge_t);
         if (edge_t < 0 || edge_t > 1) {
           console.log('unexpected edge_t');
         }
@@ -828,12 +830,9 @@ ShineGui.prototype.create_right_plot_curves = function() {
       var ei = Math.abs(c[j][0])-1;
       var e = T.edges[ei];
       var en = T.edge_normals[ei];
-      //var en = T.vertex_normals[e[0]];
-      //var v = R3_interpolate(c[j][1], T.vertex_locations[e[0]], T.vertex_locations[e[1]]);
-      var v = R3_interpolate_3way(1.0*(1-c[j][1]), T.vertex_locations[e[0]],
-                                  1.0*c[j][1],     T.vertex_locations[e[1]],
-                                  0.0,             en);
-      console.log('edge normal', en);
+      var v = R3_interpolate(c[j][1], T.vertex_locations[e[0]],  T.vertex_locations[e[1]]);
+      R3_acc_multiple_inplace(v, 0.005, en);
+      //console.log('edge normal', en);
       DD.flat_curve_vertex_locations[3*offset] = v[0];
       DD.flat_curve_vertex_locations[3*offset+1] = v[1];
       DD.flat_curve_vertex_locations[3*offset+2] = v[2];
@@ -985,7 +984,7 @@ ShineGui.prototype.init_right_plot = function() {
   
   gl.enable(gl.DEPTH_TEST);
   //gl.disable(gl.CULL_FACE);
-  gl.enable(gl.CULL_FACE);
+  //gl.enable(gl.CULL_FACE);
   
   rp.GL.inited = true;
 }
@@ -1120,7 +1119,7 @@ ShineGui.prototype.add_curve = function(path) {
   curve_data.selected = document.getElementById(o_name + 'template-selected');
   curve_data.visible = document.getElementById(o_name + 'template-visible');
   curve_data.color = document.getElementById(o_name + 'template-color');
-  console.log('Made curve data:', curve_data);
+  //console.log('Made curve data:', curve_data);
   this.curve_list.curve_list.push(curve_data);
   var namenode = document.createTextNode(o_name);
   document.getElementById(o_name + 'template-name').appendChild(namenode);
