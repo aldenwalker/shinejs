@@ -354,7 +354,15 @@ R3Surface.prototype.delete_curve = function(curve_id) {
   this.curves[curve_id] = undefined;
 }
 
-
+R3Surface.prototype.smooth_curve = function(curve_id) {
+	console.log('Smoothing curve', curve_id);
+	var ans = [ this.triangulations[0].smooth_curve( this.curves[curve_id][0] ) ];
+	for (var i=1; i<this.triangulations.length; i++) {
+		var sub_curve = this.triangulations[i].subdivide_curve( ans[ ans.length-1] );
+		ans.push( this.triangulations[i].smooth_curve( sub_curve ) );
+	}
+	this.curves[curve_id] = ans;
+}
 
 
 
@@ -895,7 +903,183 @@ R3Triangulation.prototype.subdivide_curve = function(C) {
   
 }
 
+//Repeatedly remove any edge-negative edge pairs until there aren't any
+R3Triangulation.prototype.simplify_curve = function(C_in) {
+	var i=0;
+	var C = C_in.splice(0);
+	while (i < C.length) {
+		if (C[i][0] == -C[(i+1)%C.length][0]) {
+			if (i < C.length-1) {
+				C.splice(i,2);
+				i = (i == 0 ? 0 : i-1);
+			} else {
+				C.splice(i,1);
+				C.splice(0,1);
+				i -= 2;
+			}
+		} else {
+			i += 1;
+		}
+	}
+	return C;
+}
 
+
+
+
+//Given two edge crossings (guaranteed to be sides of the local polygon
+//at the vertex across from the edge), and a direction, follow the vertex
+//neighborhood in that direction and construct a new good path
+//If no straight path exists between the start and end, return undefined
+R3Triangulation.prototype.create_new_local_path( entry_edge, leave_edge, dir ) {
+	var tris = [];
+	var entry_ei = Math.abs(entry_edge[0])-1;
+	var entry_ti = undefined;
+	if (entry_edge[0] > 0) {
+		entry_ti = (entry_edge[0] > 0 ? [ this.edges[entry_ei][4], this.edges[entry_ei][5] ]
+			                            : [ this.edges[entry_ei][2], this.edges[entry_ei][3] ]);
+	}
+	leave_ti = [ entry_ti[0], (entry_ti[1] + (dir=='left'?2:1))%3 ];
+}
+
+
+
+
+
+
+
+// Starting at curve index i, follow the curve until it leaves the neighborhood
+//of the vertex across from the initial edge (i).  Record the triangles and stuff
+R3Triangulation.prototype.build_triangle_strip_follow_curve = function(C, i) {
+	var ans = {'entry_loc':C[i]};
+	var enter_ei = Math.abs(C[i][0])-1;
+	var enter_ti = undefined;
+	if (C[i][0] > 0) {
+		enter_ti = [ this.edges[enter_ei][4], this.edges[enter_ei][5] ];
+	} else {
+		enter_ti = [ this.edges[enter_ei][2], this.edges[enter_ei][3] ];
+	}
+	ans.vertex = this.triangle_vertices[ enter_ti[0] ][ (enter_ti[1]+2)%3 ];
+	var ip1 = (i+1)%C.length;
+	var leave_ei = Math.abs(C[ip1][0])-1;
+	var leave_ti = undefined;
+	if (C[ip1][0] > 0) {
+		leave_ti = [ this.edges[leave_ei][2], this.edges[leave_ei][3] ];
+	} else {
+		leave_ti = [ this.edges[leave_ei][4], this.edges[leave_ei][5] ];
+	}
+	if (leave_ti[0] != enter_ti[0]) {
+		console.log('This should be impossible');
+	}
+	ans.enter_ti = [ enter_ti ];
+	ans.leave_ti = [ leave_ti ];
+	ans.cumulative_angles = [ this.triangle_angles[enter_ti[0]][(enter_ti[1]+2)%3] ];
+	ans.curve_dir = ( leave_ti[1] == (enter_ti[1] + 1)%3 ? 'right' : 'left');
+	var j=1;
+	while (true) {
+		jmC = j%C.length;
+		var new_enter_ei = Math.abs(C[jmC][0]) - 1;
+		var new_enter_ti = undefined;
+		if (C[jmC][0] > 0) {
+			new_enter_ti = [ this.edges[new_enter_ei][4], this.edges[new_enter_ei][5] ];
+		} else {
+			new_enter_ti = [ this.edges[new_enter_ei][2], this.edges[new_enter_ei][3] ];
+		}
+		var jp1 = (j+1)%C.length;
+		var new_leave_ei = Math.abs(C[jp1][0])-1;
+		var new_leave_ti = undefined;
+		if (C[jp1][0] > 0) {
+			new_leave_ti = [ this.edges[new_leave_ei][2], this.edges[new_leave_ei][3] ];
+		} else {
+			new_leave_ti = [ this.edges[new_leave_ei][4], this.edges[new_leave_ei][5] ];
+		}
+		if (new_leave_ti[0] != new_enter_ti[0]) {
+			console.log('This should be impossible');
+		}
+		ans.enter_ti.push(new_enter_ti);
+		ans.leave_ti.push(new_leave_ti);
+	  ans.cumulative_angles.push( ans.cumulative_angles[ans.cumulative_angles.length-1] + 
+	  	                          this.triangle_angles[enter_ti[0]][(enter_ti[1]+2)%3] );
+		var leave_dir = ( (new_leave_ti[1] == (new_enter_ti[1] + 1)%3) ? 'right' : 'left');
+		if (leave_dir == ans.curve_dir) {  //This means we're leaving this polygon
+			break;
+		}
+		j += 1;
+	}
+	ans.leave_loc = C[ (i + ans.leave_ti.length)%C.length ];
+	return ans;
+}
+
+
+
+R3Triangulation.prototype.smooth_curve = function(C_in) {
+	console.log('R3Triangulation smoothing curve');
+
+	//First simplify the curve
+	C = this.simplify_curve(C_in);
+
+	//Here, 0 == left and 1 == right
+
+	var previous_metric = 0;
+	while (true) {
+
+		var current_metric = 0;
+
+		for (var i=0; i<C.length; i++) {
+			var S = this.build_triangle_strip_follow_curve(C, i);
+
+			var test_sides = [false, false];
+
+			//If the cumulative angle of the triangle *before* exit is larger than pi
+			//then we know we must go the opposite way around
+			if ( S.cumulative_angles[S.cumulative_angles.length-2] > Math.PI ) {
+				test_sides[(S.curve_dir == 'left' ? 1 : 0)] = true;
+
+			//If the cumulative angle including the last triangle is <= pi, then we
+			//know we do NOT need to go around
+			} else if ( S.cumulative_angles[S.cumulative_angles.length-2] > Math.PI ) {
+				test_sides[(S.curve_dir == 'left' ? 0 : 1)] = true;
+			
+			//Otherwise, we need to actually evaluate both directions
+			} else {
+				test_sides = [true, true];
+			}
+
+			// Create as many solutions as we need
+			var new_curve_chunks = [ undefined, undefined ];
+			for (var j=0; j<2; j++) {
+				if (test_sides[j]) {
+					new_curve_chunks[j] = this.create_new_local_path( S.entry_loc, S.leave_loc, (j==0 ? 'left' : 'right') );
+				}
+			}
+
+			//Pick the best one
+			var chosen_chunk = undefined;
+			if (new_curve_chunks[0] === undefined && new_curve_chunks[1] === undefined) {
+				console.log("This shouldn't be possible");
+			} else if (new_curve_chunks[0] === undefined) {
+				chosen_chunk = 1;
+			} else if (new_curve_chunks[1] === undefined) {
+				chosen_chunk = 0;
+			} else {
+				chosen_chunk = (new_curve_chunks[0].metric < new_curve_chunks[1].metric ? 0 : 1);
+			}
+			var chunk = new_curve_chunks[chosen_chunk];
+
+			//Replace it
+			var args = [i, chunk.length].concat(chunk.raw);
+			Array.prototype.splice.apply(C, args);
+			current_metric += chunk.metric;
+		}
+
+		if (current_metric > previous_metric - tolerance) {
+			console.log( "Didn't improve metric; bailing");
+			break
+		}
+	}
+
+	return C;
+}
 
 
 

@@ -1125,6 +1125,7 @@ ShineGui.prototype.add_curve = function(path) {
   document.getElementById(o_name + 'template-name').appendChild(namenode);
   document.getElementById(o_name + 'template-delete').onclick = this.delete_curve.bind(this);
   document.getElementById(o_name + 'template-update').onclick = this.update_curve.bind(this);
+  document.getElementById(o_name + 'template-smooth').onclick = this.smooth_curve.bind(this);
 }
 
 
@@ -1155,7 +1156,18 @@ ShineGui.prototype.update_curve = function(evt) {
 }
 
 
-
+ShineGui.prototype.smooth_curve = function(evt) {
+  //Figure out which curve initiated it
+  for (var i=0; i<this.curve_list.curve_list.length; i++) {
+    if (this.curve_list.curve_list[i].node.contains(evt.target)) {
+    	this.surface.smooth_curve(this.curve_list.curve_list[i].id);
+      break;
+    }
+  }
+  this.redraw_left_plot();
+  this.create_right_plot_curves();
+  this.redraw_right_plot();
+}
 
 
 
