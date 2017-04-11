@@ -931,15 +931,32 @@ R3Triangulation.prototype.simplify_curve = function(C_in) {
 //at the vertex across from the edge), and a direction, follow the vertex
 //neighborhood in that direction and construct a new good path
 //If no straight path exists between the start and end, return undefined
-R3Triangulation.prototype.create_new_local_path( entry_edge, leave_edge, dir ) {
+R3Triangulation.prototype.create_new_local_path = function( entry_edge, leave_edge, dir ) {
+	//---------------- place triangles
 	var tris = [];
 	var entry_ei = Math.abs(entry_edge[0])-1;
 	var entry_ti = undefined;
-	if (entry_edge[0] > 0) {
-		entry_ti = (entry_edge[0] > 0 ? [ this.edges[entry_ei][4], this.edges[entry_ei][5] ]
-			                            : [ this.edges[entry_ei][2], this.edges[entry_ei][3] ]);
-	}
+	entry_ti = (entry_edge[0] > 0 ? [ this.edges[entry_ei][4], this.edges[entry_ei][5] ]
+			                      : [ this.edges[entry_ei][2], this.edges[entry_ei][3] ]);
+	tris[0] = this.place_triangle_R2( entry_ti[0] );
 	leave_ti = [ entry_ti[0], (entry_ti[1] + (dir=='left'?2:1))%3 ];
+	var entry_tis = [ entry_ti ];
+	var leave_tis = [ leave_ti ];
+	while (true) {
+		var cur_entry_edge = this.triangle_edges[ leave_ti[0] ][ leave_ti[1] ];
+		entry_ei = Math.abs(cur_entry_edge)-1;
+		entry_ti = (cur_entry_edge > 0 ? [ this.edges[entry_ei][4], this.edges[entry_ei][5] ] 
+			                       : [ this.edges[entry_ei][2], this.edges[entry_ei][3] ]);
+		entry_tis.push( entry_ti );
+		tris.push( this.place_triangle_R2( entry_tis[entry_tis.length-2], entry_tis[entry_tis.length-1] ) );
+		var ind_to_check = (dir=='left' ? (entry_ti[1]+2)%3 : (entry_ti[1]+1)%3);
+		if (this.triangle_edges[ entry_ti[0] ][ ind_to_check ] == leave_edge[0]) {
+			break;
+		}
+		leave_ti = [ entry_ti[0], (dir=='left' ? (entry_ti[1]+1)%3 : (entry_ti[1]+2)%3) ];
+	}
+	//--------------- Replace path
+	
 }
 
 
