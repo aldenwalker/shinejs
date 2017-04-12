@@ -13,6 +13,11 @@ function R3_mean(a, b) {
   return [ 0.5*(a[0] + b[0]), 0.5*(a[1] + b[1]), 0.5*(a[2] + b[2]) ];
 }
 
+function R3_dist(a, b) {
+	var d = [b[0]-a[0], b[1]-a[1], b[2]-a[2]];
+	return Math.sqrt( d[0]*d[0] + d[1]*d[1] + d[2]*d[2] );
+}
+
 function R3_mean_undefsafe(a, b) {
 	if (a === undefined) {
 		return b.slice(0);
@@ -68,6 +73,17 @@ function R3_triangle_angles(vert_locs, tri) {
   }
   return ans;
 }
+
+function R3_distance_to_and_along_segment(a, b, c) {
+	// Project a to p along b->c.  Return the distance from a to p and from b to p
+	var d = R3_sub(c, b);
+	var aa = R3_sub(a, b);
+	var t_along = R3_dot(d, aa) / R3_dot(aa, aa);
+	var p = R3_interpolate(t_along, b, c);
+	return [R3_dist(a, p), R3_dist(b, p)];
+}
+
+
 
 function R3_acc_inplace(a, b) {
   a[0] += b[0];
@@ -925,6 +941,30 @@ R3Triangulation.prototype.simplify_curve = function(C_in) {
 }
 
 
+//Given a triangle, place it in R2 with edge 0 along the x-axis starting at 0
+//Given two triangles, we expect an R2 triangle, a side index, and a (triangle, side) pair,
+//and it puts the new triangle down with the sides matching
+R3Triangulation.prototype.place_triangle_R2 = function( a, b, c ) {
+	if (b === undefined) {
+		//Place a single triangle
+		var v = [ this.vertex_locations[ this.triangle_vertices[a][0] ],
+		          this.vertex_locations[ this.triangle_vertices[a][1] ],
+		          this.vertex_locations[ this.triangle_vertices[a][2] ] ];
+		var dtaa = R3_distance_to_and_along_segment(v[2], v[0], v[1]);
+		var ans = [ R2Point(0,0),
+		            R2Point( R3_dist(v[0], v[1]), 0),
+		            R2Point( dtaa[1], dtaa[0] ) ];
+	} else {
+		//place a triangle next to another one
+
+
+
+
+
+		
+	}
+}
+
 
 
 //Given two edge crossings (guaranteed to be sides of the local polygon
@@ -946,17 +986,45 @@ R3Triangulation.prototype.create_new_local_path = function( entry_edge, leave_ed
 		var cur_entry_edge = this.triangle_edges[ leave_ti[0] ][ leave_ti[1] ];
 		entry_ei = Math.abs(cur_entry_edge)-1;
 		entry_ti = (cur_entry_edge > 0 ? [ this.edges[entry_ei][4], this.edges[entry_ei][5] ] 
-			                       : [ this.edges[entry_ei][2], this.edges[entry_ei][3] ]);
+			                           : [ this.edges[entry_ei][2], this.edges[entry_ei][3] ]);
 		entry_tis.push( entry_ti );
-		tris.push( this.place_triangle_R2( entry_tis[entry_tis.length-2], entry_tis[entry_tis.length-1] ) );
+		tris.push( this.place_triangle_R2( tris[tris.length-1],
+			                               leave_tis[leave_tis.length][1],
+			                               entry_tis[entry_tis.length-1] ) );
+		leave_ti = [ entry_ti[0], (dir=='left' ? (entry_ti[1]+1)%3 : (entry_ti[1]+2)%3) ];
+		leave_tis.push( leave_ti );
 		var ind_to_check = (dir=='left' ? (entry_ti[1]+2)%3 : (entry_ti[1]+1)%3);
 		if (this.triangle_edges[ entry_ti[0] ][ ind_to_check ] == leave_edge[0]) {
 			break;
 		}
-		leave_ti = [ entry_ti[0], (dir=='left' ? (entry_ti[1]+1)%3 : (entry_ti[1]+2)%3) ];
 	}
 	//--------------- Replace path
-	
+	var entry_R2_point = R2_interpolate_triangle_side( tris[0],
+		                                               entry_tis[0][1],
+		                                               (entry_edge[0] > 0 ? 1-entry_edge[1] : entry_edge[1]) );
+	var leave_R2_point = R2_interpolate_triangle_side( tris[tris.length-1],
+		                                               leave_tis[leave_tis.length-1][1],
+		                                               (leave_edge[0] > 0 ? leave_edge[1] : 1-leave_edge[1]) );
+	var central_vertex = tris[0][ (entry_tis[0][1]+2)%3 ];
+	var orientation = R2_orientation( entry_R2_point, leave_R2_point, central_vertex );
+	if ( ((orientation == 1) && (dir == 'left')) ||
+		 ((orientation == -1) && (dir == 'right')) ){
+		return undefined;
+	}
+	var new_intersections = [ entry_edge ];
+	for (var i=0; i<tris.length-1; i++) {
+		var t = R2_triangle_segment_intersection( tris[i],
+		                                          leave_tis[i][1],
+		                                          entry_R2_point,
+		                                          leave_R2_point );
+		var ei = this.triangle_edges[ leave_tis[i][0] ][ leave_tis[i][1] ];
+		if (ei < 0) {
+			t = 1-t;
+		}
+		new_intersections.push( [ei, t] );
+	}
+	new_intersections.push( leave_edge );
+	return {'raw': new_intersections, 'metric': metric};
 }
 
 
@@ -1015,8 +1083,8 @@ R3Triangulation.prototype.build_triangle_strip_follow_curve = function(C, i) {
 		}
 		ans.enter_ti.push(new_enter_ti);
 		ans.leave_ti.push(new_leave_ti);
-	  ans.cumulative_angles.push( ans.cumulative_angles[ans.cumulative_angles.length-1] + 
-	  	                          this.triangle_angles[enter_ti[0]][(enter_ti[1]+2)%3] );
+	    ans.cumulative_angles.push( ans.cumulative_angles[ans.cumulative_angles.length-1] + 
+	  	                            this.triangle_angles[enter_ti[0]][(enter_ti[1]+2)%3] );
 		var leave_dir = ( (new_leave_ti[1] == (new_enter_ti[1] + 1)%3) ? 'right' : 'left');
 		if (leave_dir == ans.curve_dir) {  //This means we're leaving this polygon
 			break;
@@ -1024,6 +1092,7 @@ R3Triangulation.prototype.build_triangle_strip_follow_curve = function(C, i) {
 		j += 1;
 	}
 	ans.leave_loc = C[ (i + ans.leave_ti.length)%C.length ];
+	ans.num_edges = ans.leave_ti.length + 1;
 	return ans;
 }
 
@@ -1084,7 +1153,7 @@ R3Triangulation.prototype.smooth_curve = function(C_in) {
 			var chunk = new_curve_chunks[chosen_chunk];
 
 			//Replace it
-			var args = [i, chunk.length].concat(chunk.raw);
+			var args = [i, S.num_edges].concat(chunk.raw);
 			Array.prototype.splice.apply(C, args);
 			current_metric += chunk.metric;
 		}

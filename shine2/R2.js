@@ -104,6 +104,11 @@ function R2_interpolate_segment(t, a, b) {
   return new R2Point(a.x + t*dx, a.y + t*dy);
 }
 
+function R2_interpolate_triangle_side(tri, side, t) {
+	return R2_interpolate_segment( t, tri[side], tri[(side+1)%3] );
+}
+
+
 function R2_project_segment_t(p, a0, a1) {
   //translate so a0 is at the origin
   var pt = p.sub(a0);
@@ -125,6 +130,11 @@ function R2_segment_intersection(a, b, c, d) {
   var ans = [ (1/det) * (MI[0]*ca[0] + MI[1]*ca[1]),  (1/det) * (MI[2]*ca[0] + MI[3]*ca[1]) ];
   return ans;
 }
+
+function R2_triangle_segment_intersection( tri, side, a, b ) {
+	return R2_segment_intersection( tri[side], tri[(side+1)%3], a, b)[1];
+}
+
 
 function R2_triangle_intersection(current_point, verts, end_point) {
   //console.log("Finding triangle intersection", current_point, verts, end_point);
