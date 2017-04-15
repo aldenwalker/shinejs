@@ -168,6 +168,24 @@ function R2_triangle_contains(verts, p) {
 }
 
 
+function R2_triangle_distance_from_and_along(dt, da, a, b) {
+	//return the point that is distance da along the segment from a to b
+	//and distance da from the segment on the left looking forward
+	var diff = b.sub(a);
+	var abd = diff.norm();
+	var t = da / abd;
+	var along_p = R2_interpolate_segment(t, a, b);
+	var perp_vector = new R2Point( -diff.y, diff.x );
+	var pl = perp_vector.norm()
+	perp_vector = perp_vector.scalar_mul( dt/pl );
+	var ans = new R2Point(along_p.x + perp_vector.x, along_p.y + perp_vector.y);
+	return ans;
+}
+
+
+
+
+
 
 function R2Graph() {
   this.vertices = [];

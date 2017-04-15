@@ -956,13 +956,18 @@ R3Triangulation.prototype.place_triangle_R2 = function( a, b, c ) {
 		            R2Point( dtaa[1], dtaa[0] ) ];
 	} else {
 		//place a triangle next to another one
-
-
-
-
-
-		
+		var ci = c[0];
+		var cedge_i = c[1];
+		var v = [ this.vertex_locations[ this.triangle_vertices[ci][0] ],
+		          this.vertex_locations[ this.triangle_vertices[ci][1] ],
+		          this.vertex_locations[ this.triangle_vertices[ci][2] ] ];
+		var dtaa = R3_distance_to_and_along_segment( v[(cedge_i+2)%3], v[cedge_i], v[(cedge_i+1)%3] )
+		var ans = [];
+		ans[cedge_i] = a[(b+1)%3];
+		ans[(cedge_i+1)%3] = a[b];
+		ans[(cedge_i+2)%3] = R2_triangle_distance_along_and_from(dtaa[0], dtaa[1], ans[cedge_i], ans[(cedge_i+1)%3]);
 	}
+	return ans;
 }
 
 
