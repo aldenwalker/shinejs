@@ -946,14 +946,18 @@ R3Triangulation.prototype.simplify_curve = function(C_in) {
 //and it puts the new triangle down with the sides matching
 R3Triangulation.prototype.place_triangle_R2 = function( a, b, c ) {
 	if (b === undefined) {
+		console.log('initial placing triangle', a);
+		console.log('With edges', this.triangle_edges[a]);
 		//Place a single triangle
 		var v = [ this.vertex_locations[ this.triangle_vertices[a][0] ],
 		          this.vertex_locations[ this.triangle_vertices[a][1] ],
 		          this.vertex_locations[ this.triangle_vertices[a][2] ] ];
 		var dtaa = R3_distance_to_and_along_segment(v[2], v[0], v[1]);
-		var ans = [ R2Point(0,0),
-		            R2Point( R3_dist(v[0], v[1]), 0),
-		            R2Point( dtaa[1], dtaa[0] ) ];
+		console.log('From points', v[2], '->', v[0], v[1]);
+		console.log('Got dtaa', dtaa);
+		var ans = [ new R2Point(0,0),
+		            new R2Point( R3_dist(v[0], v[1]), 0),
+		            new R2Point( dtaa[1], dtaa[0] ) ];
 	} else {
 		//place a triangle next to another one
 		var ci = c[0];
@@ -963,8 +967,8 @@ R3Triangulation.prototype.place_triangle_R2 = function( a, b, c ) {
 		          this.vertex_locations[ this.triangle_vertices[ci][2] ] ];
 		var dtaa = R3_distance_to_and_along_segment( v[(cedge_i+2)%3], v[cedge_i], v[(cedge_i+1)%3] )
 		var ans = [];
-		ans[cedge_i] = a[(b+1)%3];
-		ans[(cedge_i+1)%3] = a[b];
+		ans[cedge_i] = a[(b+1)%3].copy();
+		ans[(cedge_i+1)%3] = a[b].copy();
 		ans[(cedge_i+2)%3] = R2_triangle_distance_along_and_from(dtaa[0], dtaa[1], ans[cedge_i], ans[(cedge_i+1)%3]);
 	}
 	return ans;
@@ -977,6 +981,7 @@ R3Triangulation.prototype.place_triangle_R2 = function( a, b, c ) {
 //neighborhood in that direction and construct a new good path
 //If no straight path exists between the start and end, return undefined
 R3Triangulation.prototype.create_new_local_path = function( entry_edge, leave_edge, dir ) {
+	console.log('Creating new local path between edges', entry_edge, leave_edge, dir);
 	//---------------- place triangles
 	var tris = [];
 	var entry_ei = Math.abs(entry_edge[0])-1;
@@ -984,9 +989,11 @@ R3Triangulation.prototype.create_new_local_path = function( entry_edge, leave_ed
 	entry_ti = (entry_edge[0] > 0 ? [ this.edges[entry_ei][4], this.edges[entry_ei][5] ]
 			                      : [ this.edges[entry_ei][2], this.edges[entry_ei][3] ]);
 	tris[0] = this.place_triangle_R2( entry_ti[0] );
+	console.log('Placed first triangle', tris[0]);
 	leave_ti = [ entry_ti[0], (entry_ti[1] + (dir=='left'?2:1))%3 ];
 	var entry_tis = [ entry_ti ];
 	var leave_tis = [ leave_ti ];
+	console.log('Created initial entry and leave', entry_tis, leave_tis);
 	while (true) {
 		var cur_entry_edge = this.triangle_edges[ leave_ti[0] ][ leave_ti[1] ];
 		entry_ei = Math.abs(cur_entry_edge)-1;
@@ -994,7 +1001,7 @@ R3Triangulation.prototype.create_new_local_path = function( entry_edge, leave_ed
 			                           : [ this.edges[entry_ei][2], this.edges[entry_ei][3] ]);
 		entry_tis.push( entry_ti );
 		tris.push( this.place_triangle_R2( tris[tris.length-1],
-			                               leave_tis[leave_tis.length][1],
+			                               leave_tis[leave_tis.length-1][1],
 			                               entry_tis[entry_tis.length-1] ) );
 		leave_ti = [ entry_ti[0], (dir=='left' ? (entry_ti[1]+1)%3 : (entry_ti[1]+2)%3) ];
 		leave_tis.push( leave_ti );
@@ -1003,6 +1010,8 @@ R3Triangulation.prototype.create_new_local_path = function( entry_edge, leave_ed
 			break;
 		}
 	}
+	console.log('Placed all triangles', tris);
+	console.log('Created entry and leave', entry_tis, leave_tis);
 	//--------------- Replace path
 	var entry_R2_point = R2_interpolate_triangle_side( tris[0],
 		                                               entry_tis[0][1],
@@ -1012,6 +1021,8 @@ R3Triangulation.prototype.create_new_local_path = function( entry_edge, leave_ed
 		                                               (leave_edge[0] > 0 ? leave_edge[1] : 1-leave_edge[1]) );
 	var central_vertex = tris[0][ (entry_tis[0][1]+2)%3 ];
 	var orientation = R2_orientation( entry_R2_point, leave_R2_point, central_vertex );
+	console.log('Got entry, leave, central vertex', entry_R2_point, leave_R2_point, central_vertex);
+	console.log('orientation', orientation);
 	if ( ((orientation == 1) && (dir == 'left')) ||
 		 ((orientation == -1) && (dir == 'right')) ){
 		return undefined;
@@ -1029,7 +1040,20 @@ R3Triangulation.prototype.create_new_local_path = function( entry_edge, leave_ed
 		new_intersections.push( [ei, t] );
 	}
 	new_intersections.push( leave_edge );
-	return {'raw': new_intersections, 'metric': metric};
+	var metric = 0;
+	var r3pts = [];
+	for (var i=0; i<new_intersections.length; i++) {
+		var ei = Math.abs(new_intersections[i][0])-1;
+		var t = new_intersections[i][1];
+		var vi0 = this.edges[ei][0];
+		var vi1 = this.edges[ei][1];
+		var p = R3_interpolate( t, this.vertex_locations[vi0], this.vertex_locations[vi1] );
+		r3pts[i] = p;
+	}
+	for (var i=0; i<new_intersections.length-1; i++) {
+		metric += R3_dist(r3pts[i], r3pts[i+1]);
+	}
+	return { 'raw': new_intersections, 'metric': metric };
 }
 
 
@@ -1063,8 +1087,12 @@ R3Triangulation.prototype.build_triangle_strip_follow_curve = function(C, i) {
 	}
 	ans.enter_ti = [ enter_ti ];
 	ans.leave_ti = [ leave_ti ];
-	ans.cumulative_angles = [ this.triangle_angles[enter_ti[0]][(enter_ti[1]+2)%3] ];
+	console.log('Found first enter and leave ti:', enter_ti, leave_ti);
+	console.log(enter_ti[0]);
+	var ta = R3_triangle_angles( this.vertex_locations, this.triangle_vertices[enter_ti[0]] );
+	ans.cumulative_angles = [ ta[(enter_ti[1]+2)%3] ];
 	ans.curve_dir = ( leave_ti[1] == (enter_ti[1] + 1)%3 ? 'right' : 'left');
+	console.log('Found first angle and curve dir', ans.cumulative_angles, ans.curve_dir);
 	var j=1;
 	while (true) {
 		jmC = j%C.length;
@@ -1088,8 +1116,9 @@ R3Triangulation.prototype.build_triangle_strip_follow_curve = function(C, i) {
 		}
 		ans.enter_ti.push(new_enter_ti);
 		ans.leave_ti.push(new_leave_ti);
-	    ans.cumulative_angles.push( ans.cumulative_angles[ans.cumulative_angles.length-1] + 
-	  	                            this.triangle_angles[enter_ti[0]][(enter_ti[1]+2)%3] );
+		var ta = R3_triangle_angles( this.vertex_locations, this.triangle_vertices[ new_enter_ti[0] ] );
+		var new_angle = (ans.curve_dir == 'left' ? ta[(new_enter_ti[1]+2)%3] :  ta[new_enter_ti[1]]);
+	    ans.cumulative_angles.push( ans.cumulative_angles[ans.cumulative_angles.length-1] + new_angle );
 		var leave_dir = ( (new_leave_ti[1] == (new_enter_ti[1] + 1)%3) ? 'right' : 'left');
 		if (leave_dir == ans.curve_dir) {  //This means we're leaving this polygon
 			break;
@@ -1098,6 +1127,7 @@ R3Triangulation.prototype.build_triangle_strip_follow_curve = function(C, i) {
 	}
 	ans.leave_loc = C[ (i + ans.leave_ti.length)%C.length ];
 	ans.num_edges = ans.leave_ti.length + 1;
+	console.log('Found all triangle strip', ans);
 	return ans;
 }
 
@@ -1108,15 +1138,18 @@ R3Triangulation.prototype.smooth_curve = function(C_in) {
 
 	//First simplify the curve
 	C = this.simplify_curve(C_in);
-
+	console.log('Simplified curve to', C);
 	//Here, 0 == left and 1 == right
 
 	var previous_metric = 0;
-	while (true) {
+	var iters = 0;
+	while (true && iters < 1) {
 
 		var current_metric = 0;
+		console.log('Current smooth iteration',iters);
 
 		for (var i=0; i<C.length; i++) {
+			console.log('Building triangle strip at', i);
 			var S = this.build_triangle_strip_follow_curve(C, i);
 
 			var test_sides = [false, false];
@@ -1128,7 +1161,7 @@ R3Triangulation.prototype.smooth_curve = function(C_in) {
 
 			//If the cumulative angle including the last triangle is <= pi, then we
 			//know we do NOT need to go around
-			} else if ( S.cumulative_angles[S.cumulative_angles.length-2] > Math.PI ) {
+			} else if ( S.cumulative_angles[S.cumulative_angles.length-1] <= Math.PI ) {
 				test_sides[(S.curve_dir == 'left' ? 0 : 1)] = true;
 			
 			//Otherwise, we need to actually evaluate both directions
@@ -1167,6 +1200,7 @@ R3Triangulation.prototype.smooth_curve = function(C_in) {
 			console.log( "Didn't improve metric; bailing");
 			break
 		}
+		iters++;
 	}
 
 	return C;

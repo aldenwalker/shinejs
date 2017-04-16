@@ -168,7 +168,15 @@ function R2_triangle_contains(verts, p) {
 }
 
 
-function R2_triangle_distance_from_and_along(dt, da, a, b) {
+function R2_orientation(a, b, c) {
+	//return 1 if a,b,c faces up and -1 if it faces down
+	var cross_prod_z = (b.x-a.x)*(c.y-b.y) - (b.y-a.y)*(c.x-b.x);
+  	return (cross_prod_z > 0 ? 1 : -1);
+}
+
+
+
+function R2_triangle_distance_along_and_from(dt, da, a, b) {
 	//return the point that is distance da along the segment from a to b
 	//and distance da from the segment on the left looking forward
 	var diff = b.sub(a);

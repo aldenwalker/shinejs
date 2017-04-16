@@ -464,20 +464,39 @@ ShineGui.prototype.redraw_left_plot = function(mouse_loc) {
   var s = this.surface.triangulations[0].shadow;
   
   // //Draw the triangle edges
-  // lp.CC.strokeStyle = '#000000';
-  // lp.CC.lineWidth = 1;
-  // for (var i=0; i<s.edges.length; i++) {
-  //   var e = s.edges[i];
-  //   if (s.triangle_normals[e[2]][2] < 0) continue;
-  //   var v0 = s.vertex_locations[e[0]];
-  //   var v1 = s.vertex_locations[e[1]];
-  //   var p0 = this.xy_to_pixel(lp, v0[0], v0[1]);
-  //   var p1 = this.xy_to_pixel(lp, v1[0], v1[1]);
-  //   lp.CC.beginPath();
-  //   lp.CC.moveTo( p0.x, p0.y );
-  //   lp.CC.lineTo( p1.x, p1.y );
-  //   lp.CC.stroke();
-  // }
+  lp.CC.strokeStyle = '#000000';
+  lp.CC.lineWidth = 1;
+  lp.CC.textAlign = 'center';
+  lp.CC.font = '10px sans-serif';
+  lp.CC.fillStyle = '#000000';
+  for (var i=0; i<s.edges.length; i++) {
+    var e = s.edges[i];
+    if (s.triangle_normals[e[2]][2] < 0) continue;
+    var v0 = s.vertex_locations[e[0]];
+    var v1 = s.vertex_locations[e[1]];
+    var p0 = this.xy_to_pixel(lp, v0[0], v0[1]);
+    var p1 = this.xy_to_pixel(lp, v1[0], v1[1]);
+    lp.CC.beginPath();
+    lp.CC.moveTo( p0.x, p0.y );
+    lp.CC.lineTo( p1.x, p1.y );
+    lp.CC.stroke();
+    var cp = R2_interpolate_segment_xyxy(0.5, v0[0], v0[1], v1[0], v1[1]);
+    var cp = this.xy_to_pixel(lp, cp.x, cp.y);
+    lp.CC.fillText(i, cp.x, cp.y);
+  }
+
+  //Draw the triangle labels
+  for (var i=0; i<s.triangle_vertices.length; i++) {
+  	if (s.triangle_normals[i][2] < 0) continue;
+  	var tv = s.triangle_vertices[i];
+  	var c = [ s.vertex_locations[tv[0]][0] + s.vertex_locations[tv[1]][0] + s.vertex_locations[tv[2]][0],
+  	          s.vertex_locations[tv[0]][1] + s.vertex_locations[tv[1]][1] + s.vertex_locations[tv[2]][1], 
+  	          0 ];
+  	c = [(1/3)*c[0], (1/3)*c[1] ];
+  	var cp = this.xy_to_pixel(lp, c[0], c[1]);
+  	lp.CC.fillText(i, cp.x, cp.y);
+  }
+
 
   //Draw the boundary edges
   lp.CC.strokeStyle = '#000000';
