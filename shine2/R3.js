@@ -83,6 +83,14 @@ function R3_distance_to_and_along_segment(a, b, c) {
 	return [R3_dist(a, p), R3_dist(b, p)];
 }
 
+function R3_find_distance_to_and_scalar_along_segment( a, b, c) {
+	// Project a to p along b->c.  Return the distance from a to p and scalar of the vector c-b from b
+	var d = R3_sub(c, b);
+	var aa = R3_sub(a, b);
+	var t_along = R3_dot(aa, d) / R3_dot(d, d);
+	var p = R3_interpolate(t_along, b, c);
+	return [R3_dist(a, p), t_along];
+}
 
 
 function R3_acc_inplace(a, b) {
@@ -952,24 +960,29 @@ R3Triangulation.prototype.place_triangle_R2 = function( a, b, c ) {
 		var v = [ this.vertex_locations[ this.triangle_vertices[a][0] ],
 		          this.vertex_locations[ this.triangle_vertices[a][1] ],
 		          this.vertex_locations[ this.triangle_vertices[a][2] ] ];
-		var dtaa = R3_distance_to_and_along_segment(v[2], v[0], v[1]);
+		var dtaa = R3_find_distance_to_and_scalar_along_segment(v[2], v[0], v[1]);
 		console.log('From points', v[2], '->', v[0], v[1]);
 		console.log('Got dtaa', dtaa);
 		var ans = [ new R2Point(0,0),
 		            new R2Point( R3_dist(v[0], v[1]), 0),
 		            new R2Point( dtaa[1], dtaa[0] ) ];
 	} else {
+		console.log('placing triangle against triangle:', a);
+		console.log('against edge:', b);
+		console.log('Placing the (triangle, side)', c);
 		//place a triangle next to another one
 		var ci = c[0];
 		var cedge_i = c[1];
 		var v = [ this.vertex_locations[ this.triangle_vertices[ci][0] ],
 		          this.vertex_locations[ this.triangle_vertices[ci][1] ],
 		          this.vertex_locations[ this.triangle_vertices[ci][2] ] ];
-		var dtaa = R3_distance_to_and_along_segment( v[(cedge_i+2)%3], v[cedge_i], v[(cedge_i+1)%3] )
+		var dtaa = R3_find_distance_to_and_scalar_along_segment( v[(cedge_i+2)%3], v[cedge_i], v[(cedge_i+1)%3] );
+		console.log('From points', v[(cedge_i+2)%3], '->', v[cedge_i], v[(cedge_i+1)%3]);
+		console.log('Got dtaa', dtaa);
 		var ans = [];
 		ans[cedge_i] = a[(b+1)%3].copy();
 		ans[(cedge_i+1)%3] = a[b].copy();
-		ans[(cedge_i+2)%3] = R2_triangle_distance_along_and_from(dtaa[0], dtaa[1], ans[cedge_i], ans[(cedge_i+1)%3]);
+		ans[(cedge_i+2)%3] = R2_triangle_make_scalar_along_and_distance_from(dtaa[0], dtaa[1], ans[cedge_i], ans[(cedge_i+1)%3]);
 	}
 	return ans;
 }
@@ -1003,6 +1016,7 @@ R3Triangulation.prototype.create_new_local_path = function( entry_edge, leave_ed
 		tris.push( this.place_triangle_R2( tris[tris.length-1],
 			                               leave_tis[leave_tis.length-1][1],
 			                               entry_tis[entry_tis.length-1] ) );
+		console.log('Placed triangle', tris[tris.length-1]);
 		leave_ti = [ entry_ti[0], (dir=='left' ? (entry_ti[1]+1)%3 : (entry_ti[1]+2)%3) ];
 		leave_tis.push( leave_ti );
 		var ind_to_check = (dir=='left' ? (entry_ti[1]+2)%3 : (entry_ti[1]+1)%3);
