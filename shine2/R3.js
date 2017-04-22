@@ -1,3 +1,37 @@
+function circular_splice(L, i, num_to_remove, to_add) {
+	//Remove the cyclic chunk of length num_to_remove from position i in L,
+	//then extend by to_add
+	//It tries to make it so that the number of items at the beginning
+	//of the list remains the same.  If that's not possible, it puts as many
+	//as it can at the beginning
+	console.log('Circular splice', L, i, num_to_remove, to_add);
+	if (i + num_to_remove <= L.length) {
+		var args = [i, num_to_remove].concat(to_add);
+		Array.prototype.splice.apply(L, args);
+	} else {
+		var end_remove = L.length - i;
+		var beginning_remove = num_to_remove - end_remove;
+		var num_to_place = to_add.length;
+		var beginning_place = undefined;
+		var end_place = undefined;
+		if (num_to_place > beginning_remove) {
+			beginning_place = beginning_remove;
+			end_place = num_to_place - beginning_place;
+		} else {
+			beginning_place = num_to_place;
+			end_place = 0;
+		}
+		//First do the end splice so the indices aren't messed up
+		var args = [i, end_remove].concat(to_add.slice(0, end_place));
+		Array.prototype.splice.apply(L, args);
+		//Now the beginning
+		args = [0,beginning_remove].concat(to_add.slice(end_place, to_add.length));
+		Array.prototype.splice.apply(L, args);
+	}
+	console.log('After:', L);
+}
+
+
 
 function pos_mod(x,n) {
   return ((x%n)+n)%n;
@@ -378,6 +412,16 @@ R3Surface.prototype.delete_curve = function(curve_id) {
   this.curves[curve_id] = undefined;
 }
 
+R3Surface.prototype.replace_curve = function(curve_id, new_c) {
+	//Replace the roughest triangulation curve with new_c, and subdivide down
+	var ans = [new_c];
+	for (var i=1; i<this.triangulations.length; i++) {
+    	ans.push( this.triangulations[i].subdivide_curve( ans[ans.length-1] ) );
+  	}
+  	this.curves[curve_id] = ans;
+}
+
+
 R3Surface.prototype.smooth_curve = function(curve_id) {
 	console.log('Smoothing curve', curve_id);
 	var ans = [ this.triangulations[0].smooth_curve( this.curves[curve_id][0] ) ];
@@ -388,7 +432,33 @@ R3Surface.prototype.smooth_curve = function(curve_id) {
 	this.curves[curve_id] = ans;
 }
 
-
+R3Surface.prototype.twist = function(ind, dir, apply_to) {
+	console.log('Twist', ind, dir, apply_to);
+	if (this.curves[ind] === undefined) {
+		console.log("Can't twist around undefined curve");
+	}
+	//We apply the homeo to the curves in the most rough triangulation
+	var ind_list = [];
+	var target_list = [];
+	if (apply_to === undefined) {
+		for (var i=0; i<this.curves.length; i++) {
+			if (ind == i || this.curves[i] === undefined) continue;
+			ind_list.push(i);
+			target_list.push(this.curves[i][0]);
+		}
+	} else {
+		for (var j=0; j<apply_to.length; j++) {
+			var i=apply_to[j];
+			if (ind == i || this.curves[i] === undefined) continue;
+			ind_list.push(i);
+			target_list.push(this.curves[i][0]);
+		}
+	}
+	var ans_list = this.triangulations[0].twist(this.curves[ind][0], dir, target_list);
+	for (var i=0; i<ind_list.length; i++) {
+		this.replace_curve(ind_list[i], ans_list[i]);
+	}
+}
 
 
 
@@ -963,9 +1033,10 @@ R3Triangulation.prototype.place_triangle_R2 = function( a, b, c ) {
 		var dtaa = R3_find_distance_to_and_scalar_along_segment(v[2], v[0], v[1]);
 		console.log('From points', v[2], '->', v[0], v[1]);
 		console.log('Got dtaa', dtaa);
-		var ans = [ new R2Point(0,0),
-		            new R2Point( R3_dist(v[0], v[1]), 0),
-		            new R2Point( dtaa[1], dtaa[0] ) ];
+		var ans = [];
+		ans[0] = new R2Point(0,0);
+		ans[1] = new R2Point( R3_dist(v[0], v[1]), 0);
+		ans[2] = R2_triangle_make_scalar_along_and_distance_from(dtaa[0], dtaa[1], ans[0], ans[1]);
 	} else {
 		console.log('placing triangle against triangle:', a);
 		console.log('against edge:', b);
@@ -1021,6 +1092,8 @@ R3Triangulation.prototype.create_new_local_path = function( entry_edge, leave_ed
 		leave_tis.push( leave_ti );
 		var ind_to_check = (dir=='left' ? (entry_ti[1]+2)%3 : (entry_ti[1]+1)%3);
 		if (this.triangle_edges[ entry_ti[0] ][ ind_to_check ] == leave_edge[0]) {
+			//We must modify the last leave_ti
+			leave_tis[leave_tis.length-1][1] = ind_to_check;
 			break;
 		}
 	}
@@ -1047,6 +1120,8 @@ R3Triangulation.prototype.create_new_local_path = function( entry_edge, leave_ed
 		                                          leave_tis[i][1],
 		                                          entry_R2_point,
 		                                          leave_R2_point );
+		if (t < 0) t = 0;
+		if (t > 1) t = 1;
 		var ei = this.triangle_edges[ leave_tis[i][0] ][ leave_tis[i][1] ];
 		if (ei < 0) {
 			t = 1-t;
@@ -1107,7 +1182,7 @@ R3Triangulation.prototype.build_triangle_strip_follow_curve = function(C, i) {
 	ans.cumulative_angles = [ ta[(enter_ti[1]+2)%3] ];
 	ans.curve_dir = ( leave_ti[1] == (enter_ti[1] + 1)%3 ? 'right' : 'left');
 	console.log('Found first angle and curve dir', ans.cumulative_angles, ans.curve_dir);
-	var j=1;
+	var j=i+1;
 	while (true) {
 		jmC = j%C.length;
 		var new_enter_ei = Math.abs(C[jmC][0]) - 1;
@@ -1131,7 +1206,7 @@ R3Triangulation.prototype.build_triangle_strip_follow_curve = function(C, i) {
 		ans.enter_ti.push(new_enter_ti);
 		ans.leave_ti.push(new_leave_ti);
 		var ta = R3_triangle_angles( this.vertex_locations, this.triangle_vertices[ new_enter_ti[0] ] );
-		var new_angle = (ans.curve_dir == 'left' ? ta[(new_enter_ti[1]+2)%3] :  ta[new_enter_ti[1]]);
+		var new_angle = (ans.curve_dir == 'left' ? ta[(new_enter_ti[1]+1)%3] :  ta[new_enter_ti[1]]);
 	    ans.cumulative_angles.push( ans.cumulative_angles[ans.cumulative_angles.length-1] + new_angle );
 		var leave_dir = ( (new_leave_ti[1] == (new_enter_ti[1] + 1)%3) ? 'right' : 'left');
 		if (leave_dir == ans.curve_dir) {  //This means we're leaving this polygon
@@ -1149,6 +1224,8 @@ R3Triangulation.prototype.build_triangle_strip_follow_curve = function(C, i) {
 
 R3Triangulation.prototype.smooth_curve = function(C_in) {
 	console.log('R3Triangulation smoothing curve');
+
+	var tolerance = 0.000001;
 
 	//First simplify the curve
 	C = this.simplify_curve(C_in);
@@ -1194,7 +1271,7 @@ R3Triangulation.prototype.smooth_curve = function(C_in) {
 			//Pick the best one
 			var chosen_chunk = undefined;
 			if (new_curve_chunks[0] === undefined && new_curve_chunks[1] === undefined) {
-				console.log("This shouldn't be possible");
+				console.log("This shouldn't be possible, or it's negatively curved");
 			} else if (new_curve_chunks[0] === undefined) {
 				chosen_chunk = 1;
 			} else if (new_curve_chunks[1] === undefined) {
@@ -1205,9 +1282,15 @@ R3Triangulation.prototype.smooth_curve = function(C_in) {
 			var chunk = new_curve_chunks[chosen_chunk];
 
 			//Replace it
-			var args = [i, S.num_edges].concat(chunk.raw);
-			Array.prototype.splice.apply(C, args);
-			current_metric += chunk.metric;
+			if (chunk != undefined) {
+				console.log('Doing a curve replacement splice');
+				console.log('Before', C);
+				circular_splice(C, i, S.num_edges, chunk.raw);
+				console.log('After', C);
+				current_metric += chunk.metric;
+			} else {
+				console.log("Didn't find any straight line path--ignoring");
+			}
 		}
 
 		if (current_metric > previous_metric - tolerance) {
@@ -1219,6 +1302,52 @@ R3Triangulation.prototype.smooth_curve = function(C_in) {
 
 	return C;
 }
+
+
+
+
+
+R3Triangulation.prototype.twist = function(C, dir, D_list) {
+	//apply a dehn twist around C to the curves in D_list
+	//dir == pos means that if (D,C) intersection is positive, then
+	//the new curve follows C positively from that point
+	console.log("Twisting");
+	
+	//build a array which records which edges are hit by which parts of C
+	var hit_edges = [];
+	for (var i=0; i<C.length; i++) {
+		var ei = Math.abs(C[i][0])-1;
+		if (hit_edges[ei] === undefined) hit_edges[ei] = [];
+		hit_edges[ei].push(i);
+	}
+
+	//Scan through each d in D_list
+	for (var i=0; i<D_list.length; i++) {
+		var d = D_list[i];
+		var marked_intersections = [];   //Each entry records (di edge index *before* intersection, 
+		                                 //                    Ci edge index *before* intersection)
+		for (var j=0; j<d.length; j++) {
+			var ei = Math.abs(d[j][0])-1;
+			if (hit_edges[ei] === undefined) continue;
+			//We need to try intersecting the four possibilities (i,j), (i-1,j), (i,j-1), (i-1,j-1)
+			//and for each of the hit_edges
+			var d_eis = [d[pos_mod(j-1,d.length)], d[j], d[(j+1)%d.length]];
+			var d_R3_pts = [ ]
+		}
+	}
+
+
+
+}
+
+
+
+
+
+
+
+
+
 
 
 

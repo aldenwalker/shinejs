@@ -116,6 +116,12 @@ function ShineGui() {
   this.curve_list.curve_info_template = document.getElementById('curve_info_template');
   this.curve_list.curve_list_html = document.getElementById('curve_list');
   this.curve_list.curve_list = [];
+
+  document.getElementById('homeo-add').onclick = this.add_homeo.bind(this);
+  this.homeo_list = {};
+  this.homeo_list.homeo_template = document.getElementById('homeo_template');
+  this.homeo_list.homeo_list_html = document.getElementById('homeo_list');
+  this.homeo_list.homeo_list = [];
   
   
   // for (var i=0; i<2; i++) {
@@ -523,21 +529,25 @@ ShineGui.prototype.redraw_left_plot = function(mouse_loc) {
     var cid = CD.id;
     var c = this.surface.curves[cid][0];
     var pts = [];
+    var sides = [];
     for (var j=0; j<c.length; j++) {
       var ei = Math.abs(c[j][0])-1;
       var e = s.edges[ei];
       var t = c[j][1];
       var pt = R2_interpolate_segment_xyxy(t, s.vertex_locations[e[0]][0], s.vertex_locations[e[0]][1],
-                                                s.vertex_locations[e[1]][0], s.vertex_locations[e[1]][1]);
+                                              s.vertex_locations[e[1]][0], s.vertex_locations[e[1]][1]);
       var ptp = this.R2_to_pixel(lp, pt);
+      var tri_ind = (c[j][0] > 0 ? e[4] : e[2]);
+      var side = (s.triangle_normals[tri_ind][2] > 0 ? 'top' : 'bottom');
       pts[j] = ptp;
+      sides[j] = side;
     }
     for (var j=0; j<c.length; j++) {
       lp.CC.beginPath();
       lp.CC.moveTo(pts[j].x, pts[j].y);
       var jp1 = (j+1)%c.length;
       lp.CC.lineTo(pts[jp1].x, pts[jp1].y);
-      var alpha = (c[jp1][2] == lp.upside ? 1.0 : 0.3);
+      var alpha = (sides[j] == lp.upside ? 1.0 : 0.3);
       var ss = 'rgba(' + rgb[0] + ',' + rgb[1] + ',' + rgb[2] + ',' + alpha + ')';
       lp.CC.strokeStyle = ss;
       lp.CC.stroke();
@@ -835,6 +845,7 @@ ShineGui.prototype.create_right_plot_curves = function() {
   var DD = rp.GL.display_data;
   var total_curve_vertices = 0;
   for (var i=0; i<C.length; i++) {
+  	if (C[i] === undefined) continue;
     total_curve_vertices += C[i][C[i].length-1].length;
   }
   DD.flat_curve_vertex_locations = new Float32Array(3*total_curve_vertices);
@@ -842,6 +853,7 @@ ShineGui.prototype.create_right_plot_curves = function() {
   DD.flat_curve_vertices = [];
   var offset = 0;
   for (var i=0; i<C.length; i++) {
+  	if (C[i] === undefined) continue;
     var c = C[i][C[i].length-1];   //Each curve has its subdivision history; we want the latest
     DD.flat_curve_vertices[i] = new Uint16Array(c.length);
     //console.log('Creating curve:', c);
@@ -876,6 +888,7 @@ ShineGui.prototype.create_right_plot_curves = function() {
 
   DD.flat_curve_vertices_bufs = [];
   for (var i=0; i<C.length; i++) {
+  	if (C[i] === undefined) continue;
     DD.flat_curve_vertices_bufs[i] = gl.createBuffer();
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, DD.flat_curve_vertices_bufs[i]);
     gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, DD.flat_curve_vertices[i], gl.STATIC_DRAW);
@@ -1114,7 +1127,6 @@ ShineGui.prototype.subdivide_right_plot = function() {
 
 
 
-
 ShineGui.prototype.add_curve = function(path) {
   var curve_id = this.surface.add_curve(path);
   var curve_data = {'node': this.curve_list.curve_info_template.cloneNode(true)};
@@ -1140,7 +1152,7 @@ ShineGui.prototype.add_curve = function(path) {
   curve_data.color = document.getElementById(o_name + 'template-color');
   //console.log('Made curve data:', curve_data);
   this.curve_list.curve_list.push(curve_data);
-  var namenode = document.createTextNode(o_name);
+  var namenode = document.createTextNode('Name: ' + o_name);
   document.getElementById(o_name + 'template-name').appendChild(namenode);
   document.getElementById(o_name + 'template-delete').onclick = this.delete_curve.bind(this);
   document.getElementById(o_name + 'template-update').onclick = this.update_curve.bind(this);
@@ -1193,13 +1205,116 @@ ShineGui.prototype.smooth_curve = function(evt) {
 
 
 
+ShineGui.prototype.add_homeo = function() {
+  var homeo_id = this.homeo_list.homeo_list.length;
+  var homeo_id = 'homeo' + homeo_id;
+  console.log(this.homeo_list);
+  var homeo_data = {'node': this.homeo_list.homeo_template.cloneNode(true)};
+  homeo_data.id = homeo_id;
+  homeo_data.name = String(homeo_data.id);
+  var o_name = homeo_data.name;
+  
+  //Now fix all the cloned object's IDs
+  homeo_data.node.id = o_name;
+  var all_elements = homeo_data.node.getElementsByTagName('*');
+  for (var i=0; i<all_elements.length; i++) {
+    var e = all_elements[i];
+    if (e.id != '') {
+      e.id = o_name + e.id;
+    }
+  }
+  
+  //Add it to the list and display it
+  homeo_data.node.style.display = 'block';
+  this.homeo_list.homeo_list_html.appendChild(homeo_data.node);
+  homeo_data.selected = document.getElementById(o_name + 'template-selected');
+  homeo_data.visible = document.getElementById(o_name + 'template-visible');
+  homeo_data.color = document.getElementById(o_name + 'template-color');
+  //console.log('Made curve data:', curve_data);
+  this.homeo_list.homeo_list.push(homeo_data);
+  var namenode = document.createTextNode('Name: ' + o_name);
+  document.getElementById(o_name + 'template-name').appendChild(namenode);
+  document.getElementById(o_name + 'template-delete').onclick = this.delete_homeo.bind(this);
+  document.getElementById(o_name + 'template-apply').onclick = this.apply_homeo.bind(this);
+  document.getElementById(o_name + 'template-apply-sel').onclick = this.apply_homeo_sel.bind(this);
+}
+
+ShineGui.prototype.delete_homeo = function(evt) {
+ 	//Figure out which homeo initiated it
+  	for (var i=0; i<this.homeo_list.homeo_list.length; i++) {
+    	if (this.homeo_list.homeo_list[i].node.contains(evt.target)) {
+      		this.homeo_list.homeo_list_html.removeChild(this.homeo_list.homeo_list[i].node);
+      		this.homeo_list.homeo_list.splice(i,1);
+      		break;
+    	}
+  	}
+}
 
 
 
+ShineGui.prototype.apply_homeo = function(evt) {
+	//Figure out which homeo initiated it
+  	for (var i=0; i<this.homeo_list.homeo_list.length; i++) {
+    	if (this.homeo_list.homeo_list[i].node.contains(evt.target)) {
+    		this.actually_apply_homeo(i, true);
+      		break;
+    	}
+  	}
+}
+
+ShineGui.prototype.apply_homeo_sel = function(evt) {
+	//Figure out which homeo initiated it
+  	for (var i=0; i<this.homeo_list.homeo_list.length; i++) {
+    	if (this.homeo_list.homeo_list[i].node.contains(evt.target)) {
+    		this.actually_apply_homeo(i, false);
+      		break;
+    	}
+  	}
+}
 
 
+ShineGui.prototype.actually_apply_homeo = function(ind, everything) {
+	var name = this.homeo_list.homeo_list[ind].name;
+	var raw = document.getElementById(name + 'template-recipe').value;
+	//console.log('Got recipe:' + raw);
+	var lines = raw.split('\n');
+	var recipe = [];
+	for (var i=0; i<lines.length; i++) {
+		var L = lines[i].split(' ');
+		for (var j=0; j<L.length; j++) {
+	  		L[j] = L[j].trim();
+		}
+		recipe.push(L);
+	}
 
+	var apply_to = undefined;
+	if (!everything) {
+		apply_to = [];
+		for (var i=0; i<this.curve_list.curve_list.length; i++) {
+			if (this.curve_list.curve_list[i] === undefined) continue;
+			var c_name = this.curve_list.curve_list[i].name;
+			var c_surface_id = this.curve_list.curve_list[i].id;
+			if (document.getElementById(c_name + 'template-selected').checked) {
+				apply_to.push(c_surface_id);
+			}
+		}
+	}
 
+	for (var i=0; i<recipe.length; i++) {
+		if (recipe[i][0] == 'twist') {
+			var ind_to_twist = Number(recipe[i][1]);
+			if (recipe[i][2] != 'pos' && recipe[i][2] != 'neg') {
+				alert("Couldn't parse recipe");
+				break;
+			}
+			var dir = recipe[i][2];
+			this.surface.twist(ind_to_twist, dir, apply_to);
+		} else {
+			alert("Couldn't parse recipe");
+			break;
+		}
+	}
+}
 
 
 

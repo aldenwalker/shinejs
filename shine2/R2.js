@@ -132,7 +132,9 @@ function R2_segment_intersection(a, b, c, d) {
 }
 
 function R2_triangle_segment_intersection( tri, side, a, b ) {
-	return R2_segment_intersection( tri[side], tri[(side+1)%3], a, b)[1];
+	var ans = R2_segment_intersection( tri[side], tri[(side+1)%3], a, b)[0];
+	console.log('R2_triangle_segment_intersection', tri, side, a, b, ans);
+	return ans;
 }
 
 
@@ -194,12 +196,15 @@ function R2_triangle_distance_along_and_from(dt, da, a, b) {
 function R2_triangle_make_scalar_along_and_distance_from(df, t, a, b) {
 	//return the point that is scalar multiple t of b-a from a
 	//and distance df from the segment on the left when looking forward
+	console.log('Scalar along and distance from', df, t, a, b);
 	var diff = b.sub(a);
 	var abd = diff.norm();
-	var along_p = b.add(diff.scalar_mul(t));
+	var along_p = a.add(diff.scalar_mul(t));
+	console.log('along_p',along_p);
 	var perp_vector = new R2Point( -diff.y, diff.x );
 	var pl = perp_vector.norm()
 	perp_vector = perp_vector.scalar_mul( df/pl );
+	console.log('perp', perp_vector);
 	var ans = new R2Point(along_p.x + perp_vector.x, along_p.y + perp_vector.y);
 	return ans;
 }

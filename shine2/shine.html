@@ -181,7 +181,7 @@ Nope.
 
 
 
-<div class='boxleft' id='curve_info_box>
+<div class='boxleft' id='curve_info_box'>
 <hr>
 <div class='input'>
 <div class='input_label'><h3>Curves:</h3></div>
@@ -189,7 +189,17 @@ Nope.
 <br class='clear'>
 <div id='curve_list' class='obj-list'>
 </div>
+</div>
 
+<div class='boxright' id='homeo_info_box'>
+<hr>
+<div class='input'>
+<div class='input_label'><h3>Homeos:</h3></div>
+<div class='input_input'><button type='button' id='homeo-add'>Add</button></div>
+</div>
+<br class='clear'>
+<div id='homeo_list' class='obj-list'>
+</div>
 </div>
 
 <br class='clear'>
@@ -257,6 +267,25 @@ Nope.
 
 
 
+<!-- this is a template for the homeo data -->
+<div id='homeo_template' class='obj-info-template' style='display:none;'>
+
+<div class='input'>
+<div class='input_label' id='template-name'></div>
+<div class='input_input'>
+<button type='button' id='template-apply'>Apply</button>
+<button type='button' id='template-apply-sel'>Apply to selected</button>
+<button type='button' id='template-delete'>Delete</button></div>
+</div>
+<br class='clear'>
+
+<div class='input'>
+<div class='input_label'>Recipe:</div>
+<div class='input_input'><textarea rows=4 cols=15 id='template-recipe'>twist 0 pos</textarea></div>
+</div>
+<br class='clear'>
+
+</div>
 
 
 
