@@ -60,6 +60,10 @@ R2Point.prototype.as_array = function() {
   return [this.x, this.y];
 }
 
+R2Point.prototype.cross_z = function(b) {
+	return this.x*b.y - this.y*b.x;
+}
+
 function R2_distance_to_segment(p, a0, a1) {
   //translate so a0 is at the origin
   var pt = p.sub(a0);
@@ -196,18 +200,45 @@ function R2_triangle_distance_along_and_from(dt, da, a, b) {
 function R2_triangle_make_scalar_along_and_distance_from(df, t, a, b) {
 	//return the point that is scalar multiple t of b-a from a
 	//and distance df from the segment on the left when looking forward
-	console.log('Scalar along and distance from', df, t, a, b);
+	// console.log('Scalar along and distance from', df, t, a, b);
 	var diff = b.sub(a);
 	var abd = diff.norm();
 	var along_p = a.add(diff.scalar_mul(t));
-	console.log('along_p',along_p);
+	// console.log('along_p',along_p);
 	var perp_vector = new R2Point( -diff.y, diff.x );
 	var pl = perp_vector.norm()
 	perp_vector = perp_vector.scalar_mul( df/pl );
-	console.log('perp', perp_vector);
+	// console.log('perp', perp_vector);
 	var ans = new R2Point(along_p.x + perp_vector.x, along_p.y + perp_vector.y);
 	return ans;
 }
+
+
+function R2_model_triangle_intersection(seg0, seg1) {
+	//Return the t value along segment 1 in a model triangle
+	//and pos/neg for the orientation of the intersection
+	//Each argument should be [side0, t0, side1, t1] giving a segment
+	//return undefined if there is no intersection
+	var verts = [new R2Point(0,0), new R2Point(1,0), new R2Point(0,1)];
+	console.log('Getting model triangle intersection', seg0, seg1);
+	var tri_seg_0 = [ R2_interpolate_triangle_side( verts, seg0[0], seg0[1] ),
+	                  R2_interpolate_triangle_side( verts, seg0[2], seg0[3] ) ];
+	var tri_seg_1 = [ R2_interpolate_triangle_side( verts, seg1[0], seg1[1] ),
+	                  R2_interpolate_triangle_side( verts, seg1[2], seg1[3] ) ];
+	var seg_int = R2_segment_intersection( tri_seg_0[0], tri_seg_0[1], tri_seg_1[0], tri_seg_1[1] );
+	console.log('Got ', seg_int);
+	if (seg_int === undefined || seg_int[0] < 0 || seg_int[0] > 1 || seg_int[1] < 0 || seg_int[1] > 1) {
+		return undefined;
+	}
+	var orientation = ( tri_seg_0[1].sub(tri_seg_0[0]).cross_z( tri_seg_1[1].sub(tri_seg_1[0]) ) > 0 ? 'pos' : 'neg');
+	return [seg_int[1], orientation];
+}
+
+
+
+
+
+
 
 
 function R2Graph() {

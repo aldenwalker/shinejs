@@ -1314,6 +1314,9 @@ ShineGui.prototype.actually_apply_homeo = function(ind, everything) {
 			break;
 		}
 	}
+	this.redraw_left_plot();
+	this.create_right_plot_curves();
+	this.redraw_right_plot();	
 }
 
 

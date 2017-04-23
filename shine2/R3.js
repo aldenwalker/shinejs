@@ -4,7 +4,7 @@ function circular_splice(L, i, num_to_remove, to_add) {
 	//It tries to make it so that the number of items at the beginning
 	//of the list remains the same.  If that's not possible, it puts as many
 	//as it can at the beginning
-	console.log('Circular splice', L, i, num_to_remove, to_add);
+	// console.log('Circular splice', L, i, num_to_remove, to_add);
 	if (i + num_to_remove <= L.length) {
 		var args = [i, num_to_remove].concat(to_add);
 		Array.prototype.splice.apply(L, args);
@@ -28,9 +28,19 @@ function circular_splice(L, i, num_to_remove, to_add) {
 		args = [0,beginning_remove].concat(to_add.slice(end_place, to_add.length));
 		Array.prototype.splice.apply(L, args);
 	}
-	console.log('After:', L);
+	// console.log('After:', L);
 }
 
+
+function circular_slice(L, i, j) {
+	// get the circular slice of length j starting at i
+	var ans = [];
+	var ln = L.length;
+	for (var k=0; k<j; k++) {
+		ans[k] = L[(i+k)%ln];
+	}
+	return ans;
+}
 
 
 function pos_mod(x,n) {
@@ -456,7 +466,10 @@ R3Surface.prototype.twist = function(ind, dir, apply_to) {
 	}
 	var ans_list = this.triangulations[0].twist(this.curves[ind][0], dir, target_list);
 	for (var i=0; i<ind_list.length; i++) {
-		this.replace_curve(ind_list[i], ans_list[i]);
+		var smoothed = ans_list[i]; //this.triangulations[0].smooth_curve(ans_list[i]);
+		//console.log('Replacing',ind_list[i],'currently', this.curves[ind_list[i]][0].slice(0));
+		this.replace_curve(ind_list[i], smoothed);
+		console.log('new', this.curves[ind_list[i]][0].slice(0));
 	}
 }
 
@@ -1024,23 +1037,23 @@ R3Triangulation.prototype.simplify_curve = function(C_in) {
 //and it puts the new triangle down with the sides matching
 R3Triangulation.prototype.place_triangle_R2 = function( a, b, c ) {
 	if (b === undefined) {
-		console.log('initial placing triangle', a);
-		console.log('With edges', this.triangle_edges[a]);
+		// console.log('initial placing triangle', a);
+		// console.log('With edges', this.triangle_edges[a]);
 		//Place a single triangle
 		var v = [ this.vertex_locations[ this.triangle_vertices[a][0] ],
 		          this.vertex_locations[ this.triangle_vertices[a][1] ],
 		          this.vertex_locations[ this.triangle_vertices[a][2] ] ];
 		var dtaa = R3_find_distance_to_and_scalar_along_segment(v[2], v[0], v[1]);
-		console.log('From points', v[2], '->', v[0], v[1]);
-		console.log('Got dtaa', dtaa);
+		// console.log('From points', v[2], '->', v[0], v[1]);
+		// console.log('Got dtaa', dtaa);
 		var ans = [];
 		ans[0] = new R2Point(0,0);
 		ans[1] = new R2Point( R3_dist(v[0], v[1]), 0);
 		ans[2] = R2_triangle_make_scalar_along_and_distance_from(dtaa[0], dtaa[1], ans[0], ans[1]);
 	} else {
-		console.log('placing triangle against triangle:', a);
-		console.log('against edge:', b);
-		console.log('Placing the (triangle, side)', c);
+		// console.log('placing triangle against triangle:', a);
+		// console.log('against edge:', b);
+		// console.log('Placing the (triangle, side)', c);
 		//place a triangle next to another one
 		var ci = c[0];
 		var cedge_i = c[1];
@@ -1048,8 +1061,8 @@ R3Triangulation.prototype.place_triangle_R2 = function( a, b, c ) {
 		          this.vertex_locations[ this.triangle_vertices[ci][1] ],
 		          this.vertex_locations[ this.triangle_vertices[ci][2] ] ];
 		var dtaa = R3_find_distance_to_and_scalar_along_segment( v[(cedge_i+2)%3], v[cedge_i], v[(cedge_i+1)%3] );
-		console.log('From points', v[(cedge_i+2)%3], '->', v[cedge_i], v[(cedge_i+1)%3]);
-		console.log('Got dtaa', dtaa);
+		// console.log('From points', v[(cedge_i+2)%3], '->', v[cedge_i], v[(cedge_i+1)%3]);
+		// console.log('Got dtaa', dtaa);
 		var ans = [];
 		ans[cedge_i] = a[(b+1)%3].copy();
 		ans[(cedge_i+1)%3] = a[b].copy();
@@ -1065,7 +1078,7 @@ R3Triangulation.prototype.place_triangle_R2 = function( a, b, c ) {
 //neighborhood in that direction and construct a new good path
 //If no straight path exists between the start and end, return undefined
 R3Triangulation.prototype.create_new_local_path = function( entry_edge, leave_edge, dir ) {
-	console.log('Creating new local path between edges', entry_edge, leave_edge, dir);
+	//console.log('Creating new local path between edges', entry_edge, leave_edge, dir);
 	//---------------- place triangles
 	var tris = [];
 	var entry_ei = Math.abs(entry_edge[0])-1;
@@ -1073,11 +1086,11 @@ R3Triangulation.prototype.create_new_local_path = function( entry_edge, leave_ed
 	entry_ti = (entry_edge[0] > 0 ? [ this.edges[entry_ei][4], this.edges[entry_ei][5] ]
 			                      : [ this.edges[entry_ei][2], this.edges[entry_ei][3] ]);
 	tris[0] = this.place_triangle_R2( entry_ti[0] );
-	console.log('Placed first triangle', tris[0]);
+	//console.log('Placed first triangle', tris[0]);
 	leave_ti = [ entry_ti[0], (entry_ti[1] + (dir=='left'?2:1))%3 ];
 	var entry_tis = [ entry_ti ];
 	var leave_tis = [ leave_ti ];
-	console.log('Created initial entry and leave', entry_tis, leave_tis);
+	//console.log('Created initial entry and leave', entry_tis, leave_tis);
 	while (true) {
 		var cur_entry_edge = this.triangle_edges[ leave_ti[0] ][ leave_ti[1] ];
 		entry_ei = Math.abs(cur_entry_edge)-1;
@@ -1087,7 +1100,7 @@ R3Triangulation.prototype.create_new_local_path = function( entry_edge, leave_ed
 		tris.push( this.place_triangle_R2( tris[tris.length-1],
 			                               leave_tis[leave_tis.length-1][1],
 			                               entry_tis[entry_tis.length-1] ) );
-		console.log('Placed triangle', tris[tris.length-1]);
+		//console.log('Placed triangle', tris[tris.length-1]);
 		leave_ti = [ entry_ti[0], (dir=='left' ? (entry_ti[1]+1)%3 : (entry_ti[1]+2)%3) ];
 		leave_tis.push( leave_ti );
 		var ind_to_check = (dir=='left' ? (entry_ti[1]+2)%3 : (entry_ti[1]+1)%3);
@@ -1097,8 +1110,8 @@ R3Triangulation.prototype.create_new_local_path = function( entry_edge, leave_ed
 			break;
 		}
 	}
-	console.log('Placed all triangles', tris);
-	console.log('Created entry and leave', entry_tis, leave_tis);
+	//console.log('Placed all triangles', tris);
+	//console.log('Created entry and leave', entry_tis, leave_tis);
 	//--------------- Replace path
 	var entry_R2_point = R2_interpolate_triangle_side( tris[0],
 		                                               entry_tis[0][1],
@@ -1108,8 +1121,8 @@ R3Triangulation.prototype.create_new_local_path = function( entry_edge, leave_ed
 		                                               (leave_edge[0] > 0 ? leave_edge[1] : 1-leave_edge[1]) );
 	var central_vertex = tris[0][ (entry_tis[0][1]+2)%3 ];
 	var orientation = R2_orientation( entry_R2_point, leave_R2_point, central_vertex );
-	console.log('Got entry, leave, central vertex', entry_R2_point, leave_R2_point, central_vertex);
-	console.log('orientation', orientation);
+	//console.log('Got entry, leave, central vertex', entry_R2_point, leave_R2_point, central_vertex);
+	//console.log('orientation', orientation);
 	if ( ((orientation == 1) && (dir == 'left')) ||
 		 ((orientation == -1) && (dir == 'right')) ){
 		return undefined;
@@ -1176,12 +1189,12 @@ R3Triangulation.prototype.build_triangle_strip_follow_curve = function(C, i) {
 	}
 	ans.enter_ti = [ enter_ti ];
 	ans.leave_ti = [ leave_ti ];
-	console.log('Found first enter and leave ti:', enter_ti, leave_ti);
-	console.log(enter_ti[0]);
+	//console.log('Found first enter and leave ti:', enter_ti, leave_ti);
+	//console.log(enter_ti[0]);
 	var ta = R3_triangle_angles( this.vertex_locations, this.triangle_vertices[enter_ti[0]] );
 	ans.cumulative_angles = [ ta[(enter_ti[1]+2)%3] ];
 	ans.curve_dir = ( leave_ti[1] == (enter_ti[1] + 1)%3 ? 'right' : 'left');
-	console.log('Found first angle and curve dir', ans.cumulative_angles, ans.curve_dir);
+	//console.log('Found first angle and curve dir', ans.cumulative_angles, ans.curve_dir);
 	var j=i+1;
 	while (true) {
 		jmC = j%C.length;
@@ -1216,7 +1229,7 @@ R3Triangulation.prototype.build_triangle_strip_follow_curve = function(C, i) {
 	}
 	ans.leave_loc = C[ (i + ans.leave_ti.length)%C.length ];
 	ans.num_edges = ans.leave_ti.length + 1;
-	console.log('Found all triangle strip', ans);
+	//console.log('Found all triangle strip', ans);
 	return ans;
 }
 
@@ -1240,7 +1253,7 @@ R3Triangulation.prototype.smooth_curve = function(C_in) {
 		console.log('Current smooth iteration',iters);
 
 		for (var i=0; i<C.length; i++) {
-			console.log('Building triangle strip at', i);
+			//console.log('Building triangle strip at', i);
 			var S = this.build_triangle_strip_follow_curve(C, i);
 
 			var test_sides = [false, false];
@@ -1283,10 +1296,10 @@ R3Triangulation.prototype.smooth_curve = function(C_in) {
 
 			//Replace it
 			if (chunk != undefined) {
-				console.log('Doing a curve replacement splice');
-				console.log('Before', C);
+				//console.log('Doing a curve replacement splice');
+				//console.log('Before', C);
 				circular_splice(C, i, S.num_edges, chunk.raw);
-				console.log('After', C);
+				//console.log('After', C);
 				current_metric += chunk.metric;
 			} else {
 				console.log("Didn't find any straight line path--ignoring");
@@ -1310,34 +1323,92 @@ R3Triangulation.prototype.smooth_curve = function(C_in) {
 R3Triangulation.prototype.twist = function(C, dir, D_list) {
 	//apply a dehn twist around C to the curves in D_list
 	//dir == pos means that if (D,C) intersection is positive, then
-	//the new curve follows C positively from that point
+	//the new curve follows C negatively from that point (I think this is a normal dehn twist)
 	console.log("Twisting");
 	
-	//build a array which records which edges are hit by which parts of C
-	var hit_edges = [];
+	//build a array which records which triangles are hit by which parts of C
+	var hit_triangles = [];
 	for (var i=0; i<C.length; i++) {
 		var ei = Math.abs(C[i][0])-1;
-		if (hit_edges[ei] === undefined) hit_edges[ei] = [];
-		hit_edges[ei].push(i);
+		var eis = C[i][0];
+		var trii = (eis>0 ? this.edges[ei][4] : this.edges[ei][2]);
+		var sidei = (eis>0 ? this.edges[ei][5] : this.edges[ei][3]);
+		var sidei_t = (eis > 0 ? 1-C[i][1] : C[i][1]);
+		var ip1 = (i+1)%C.length;
+		var eip1 = Math.abs(C[ip1][0])-1;
+		var eip1s = C[ip1][0];
+		var triip1 = (eip1s > 0 ? this.edges[eip1][2] : this.edges[eip1][4]);
+		if (trii != triip1) {
+			console.log('Not the same triangle?');
+		}
+		var sideip1 = (eip1s > 0 ? this.edges[eip1][3] : this.edges[eip1][5]);
+		var sideip1_t = (eip1s > 0 ? C[ip1][1] : 1-C[ip1][1]);
+		if (hit_triangles[trii] === undefined) hit_triangles[trii] = [];
+		hit_triangles[trii].push( [i, sidei, sidei_t, sideip1, sideip1_t] );
 	}
 
 	//Scan through each d in D_list
 	for (var i=0; i<D_list.length; i++) {
 		var d = D_list[i];
-		var marked_intersections = [];   //Each entry records (di edge index *before* intersection, 
-		                                 //                    Ci edge index *before* intersection)
+		var marked_intersections = []; 
 		for (var j=0; j<d.length; j++) {
-			var ei = Math.abs(d[j][0])-1;
-			if (hit_edges[ei] === undefined) continue;
-			//We need to try intersecting the four possibilities (i,j), (i-1,j), (i,j-1), (i-1,j-1)
-			//and for each of the hit_edges
-			var d_eis = [d[pos_mod(j-1,d.length)], d[j], d[(j+1)%d.length]];
-			var d_R3_pts = [ ]
+			var ej = Math.abs(d[j][0])-1;
+			var ejs = d[j][0];
+			var trij = (ejs > 0 ? this.edges[ej][4] : this.edges[ej][2]);
+			if (hit_triangles[trij] === undefined) continue;
+			var sidej = (ejs > 0 ? this.edges[ej][5] : this.edges[ej][3]);
+			var sidej_t = (ejs > 0 ? 1-d[j][1] : d[j][1]);
+			var jp1 = (j+1)%d.length;
+			var ejp1 = Math.abs(d[jp1][0])-1;
+			var ejp1s = d[jp1][0];
+			var sidejp1 = (ejp1s > 0 ? this.edges[ejp1][3] : this.edges[ejp1][5]);
+			var sidejp1_t = (ejp1s > 0 ? d[j][1] : 1-d[j][1]);
+			var segment_data = [sidej, sidej_t, sidejp1, sidejp1_t];
+			var intersection_ts = [];
+			console.log('Found possible intersection in triangle', trij);
+			console.log(hit_triangles[trij], segment_data);
+			for (var k=0; k<hit_triangles[trij].length; k++) {
+				var t = R2_model_triangle_intersection(hit_triangles[trij][k].slice(1), segment_data);
+				if (t != undefined) {
+					//we called with the reverse order, so we need to flip the sign
+					t[1] = (t[1] == 'pos' ? 'neg' : 'pos');
+					intersection_ts.push( [t[0], t[1], k] );
+				}
+			}
+			intersection_ts.sort( function (a,b) { return a[0]-b[0]; } );
+			console.log('Found intersection ts:', intersection_ts);
+			var this_tri_ints = [];
+			for (var ell=0; ell<intersection_ts.length; ell++) {
+				this_tri_ints[ell] = [ hit_triangles[trij][ intersection_ts[ell][2] ][0],
+				                       intersection_ts[ell][1] ];
+			}
+			marked_intersections.push( [j, this_tri_ints] );
+		}
+		//Now marked intersections is an array with elements of the form [j, [i1,i2,...]]
+		//where it's segment j of d intersects segments i1,i2, etc of C, and in that order
+		//note the j are in order, so if we do the replacements in reverse order,
+		//the j indices will remain accurate
+		for (var k=marked_intersections.length-1; k>=0; k--) {
+			var mi = marked_intersections[k];
+			for (var ell=mi[1].length-1; ell>=0; ell--) {
+				var to_insert = circular_slice(C, mi[1][ell][0]+1, C.length);
+				console.log('Current d', d.slice());
+				console.log('To insert',to_insert.slice());
+				console.log('In location ', mi[0]+1);
+				if (mi[1][ell][1] == dir) {
+					to_insert.reverse();
+					for (var n=0; n<to_insert.length; n++) {
+						//Note we need to make a COPY  this is annoying
+						to_insert[n] = [ -to_insert[n][0], to_insert[n][1] ];
+					}
+				}
+				console.log('Actually inserting', to_insert.slice());
+				var args = [mi[0]+1, 0].concat(to_insert);
+				Array.prototype.splice.apply(d, args);
+			}
 		}
 	}
-
-
-
+	return D_list;
 }
 
 
