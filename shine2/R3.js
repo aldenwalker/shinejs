@@ -432,14 +432,20 @@ R3Surface.prototype.replace_curve = function(curve_id, new_c) {
 }
 
 
-R3Surface.prototype.smooth_curve = function(curve_id) {
-	console.log('Smoothing curve', curve_id);
-	var ans = [ this.triangulations[0].smooth_curve( this.curves[curve_id][0] ) ];
-	for (var i=1; i<this.triangulations.length; i++) {
-		var sub_curve = this.triangulations[i].subdivide_curve( ans[ ans.length-1] );
-		ans.push( this.triangulations[i].smooth_curve( sub_curve ) );
+R3Surface.prototype.smooth_curve = function(curve_id, redo_all) {
+	console.log('Smoothing curve', curve_id, 'redo', redo_all);
+	if (redo_all == true) {
+		var ans = [ this.triangulations[0].smooth_curve( this.curves[curve_id][0] ) ];
+		for (var i=1; i<this.triangulations.length; i++) {
+			var sub_curve = this.triangulations[i].subdivide_curve( ans[ ans.length-1] );
+			ans.push( this.triangulations[i].smooth_curve( sub_curve ) );
+		}
+		this.curves[curve_id] = ans;
+	} else {
+		this.curves[curve_id][0] = this.triangulations[0].smooth_curve( this.curves[curve_id][0] );
+		var n = this.curves.curve_id.length;
+		this.curves[curve_id][n-1] = this.triangulations[n-1].smooth_curve( this.curves[curve_id][n-1] );
 	}
-	this.curves[curve_id] = ans;
 }
 
 R3Surface.prototype.twist = function(ind, dir, apply_to) {
@@ -466,7 +472,8 @@ R3Surface.prototype.twist = function(ind, dir, apply_to) {
 	}
 	var ans_list = this.triangulations[0].twist(this.curves[ind][0], dir, target_list);
 	for (var i=0; i<ind_list.length; i++) {
-		var smoothed = ans_list[i]; //this.triangulations[0].smooth_curve(ans_list[i]);
+		var smoothed = this.triangulations[0].smooth_curve(ans_list[i], true);
+		smoothed = this.triangulations[0].smooth_curve(smoothed, true);
 		//console.log('Replacing',ind_list[i],'currently', this.curves[ind_list[i]][0].slice(0));
 		this.replace_curve(ind_list[i], smoothed);
 		console.log('new', this.curves[ind_list[i]][0].slice(0));
@@ -1110,8 +1117,9 @@ R3Triangulation.prototype.create_new_local_path = function( entry_edge, leave_ed
 			break;
 		}
 	}
-	//console.log('Placed all triangles', tris);
-	//console.log('Created entry and leave', entry_tis, leave_tis);
+	console.log('Placed all triangles', tris);
+	console.log('Created entry and leave', entry_tis, leave_tis);
+	console.log('entry_edge:', entry_edge, 'leave_edge', leave_edge);
 	//--------------- Replace path
 	var entry_R2_point = R2_interpolate_triangle_side( tris[0],
 		                                               entry_tis[0][1],
@@ -1121,8 +1129,8 @@ R3Triangulation.prototype.create_new_local_path = function( entry_edge, leave_ed
 		                                               (leave_edge[0] > 0 ? leave_edge[1] : 1-leave_edge[1]) );
 	var central_vertex = tris[0][ (entry_tis[0][1]+2)%3 ];
 	var orientation = R2_orientation( entry_R2_point, leave_R2_point, central_vertex );
-	//console.log('Got entry, leave, central vertex', entry_R2_point, leave_R2_point, central_vertex);
-	//console.log('orientation', orientation);
+	console.log('Got entry, leave, central vertex', entry_R2_point, leave_R2_point, central_vertex);
+	console.log('orientation', orientation);
 	if ( ((orientation == 1) && (dir == 'left')) ||
 		 ((orientation == -1) && (dir == 'right')) ){
 		return undefined;

@@ -1150,6 +1150,7 @@ ShineGui.prototype.add_curve = function(path) {
   curve_data.selected = document.getElementById(o_name + 'template-selected');
   curve_data.visible = document.getElementById(o_name + 'template-visible');
   curve_data.color = document.getElementById(o_name + 'template-color');
+  curve_data.smoothed = false;
   //console.log('Made curve data:', curve_data);
   this.curve_list.curve_list.push(curve_data);
   var namenode = document.createTextNode('Name: ' + o_name);
@@ -1191,8 +1192,9 @@ ShineGui.prototype.smooth_curve = function(evt) {
   //Figure out which curve initiated it
   for (var i=0; i<this.curve_list.curve_list.length; i++) {
     if (this.curve_list.curve_list[i].node.contains(evt.target)) {
-    	this.surface.smooth_curve(this.curve_list.curve_list[i].id);
-      break;
+    	var redo_all = (this.curve_list.curve_list[i].smoothed == false ? true : false);
+    	this.surface.smooth_curve(this.curve_list.curve_list[i].id, redo_all);
+      	break;
     }
   }
   this.redraw_left_plot();
@@ -1296,6 +1298,7 @@ ShineGui.prototype.actually_apply_homeo = function(ind, everything) {
 			var c_surface_id = this.curve_list.curve_list[i].id;
 			if (document.getElementById(c_name + 'template-selected').checked) {
 				apply_to.push(c_surface_id);
+				this.curve_list.curve_list[i].smoothed = false;
 			}
 		}
 	}

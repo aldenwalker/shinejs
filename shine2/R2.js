@@ -123,21 +123,44 @@ function R2_project_segment_t(p, a0, a1) {
 }
 
 function R2_segment_intersection(a, b, c, d) {
-  //Return the t-values of the intersection point between a->b and c->d
-  var M = [ b.x-a.x, c.x-d.x, b.y-a.y, c.y-d.y ];
-  var det = M[0]*M[3] - M[1]*M[2];
-  if (det == 0) {
-    return undefined;
-  }
-  var MI = [ M[3], -M[1], -M[2], M[0] ];
-  var ca = [ c.x-a.x, c.y-a.y ];
-  var ans = [ (1/det) * (MI[0]*ca[0] + MI[1]*ca[1]),  (1/det) * (MI[2]*ca[0] + MI[3]*ca[1]) ];
-  return ans;
+    //Return the t-values of the intersection point between a->b and c->d
+    var M = [ b.x-a.x, c.x-d.x, b.y-a.y, c.y-d.y ];
+    //It might be that c==d
+    if (M[1] == 0 && M[3] == 0) {
+        var ca = [ c.x-a.x, c.y-a.y ];
+        if (M[0] == 0) {
+            if (M[2] == 0) return undefined;
+            return [ ca[1] / M[2], 0 ];
+        } else {
+  		    return [ ca[0] / M[0], 0 ];
+        }
+    }
+
+    if (M[0] == 0 && M[2] == 0) {
+        var ca = [ c.x-a.x, c.y-a.y ];
+        if (M[1] == 0) {
+            return [ 0, ca[1] / M[3] ];
+        } else {
+            return [ 0, ca[0] / M[1] ];
+        }
+    }
+
+    var det = M[0]*M[3] - M[1]*M[2];
+    if (det == 0) {
+        return undefined;
+    }
+    var MI = [ M[3], -M[1], -M[2], M[0] ];
+    var ca = [ c.x-a.x, c.y-a.y ];
+    var ans = [ (1/det) * (MI[0]*ca[0] + MI[1]*ca[1]),  (1/det) * (MI[2]*ca[0] + MI[3]*ca[1]) ];
+    return ans;
 }
 
 function R2_triangle_segment_intersection( tri, side, a, b ) {
+	// if (tri === undefined || side === undefined || a === undefined || b === undefined) {
+	// 	console.log('BAD');
+	// }
 	var ans = R2_segment_intersection( tri[side], tri[(side+1)%3], a, b)[0];
-	console.log('R2_triangle_segment_intersection', tri, side, a, b, ans);
+	//console.log('R2_triangle_segment_intersection', tri, side, a, b, ans);
 	return ans;
 }
 
