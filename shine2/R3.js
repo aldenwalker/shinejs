@@ -827,7 +827,7 @@ R3Triangulation.prototype.subdivide = function() {
 
 
 R3Triangulation.prototype.process_curve_input = function(C) {
-  //console.log('processing', C)
+  console.log('processing', C)
   if (this.shadow === undefined) {
     console.log("Can't process curve input without shadow");
     return undefined;
@@ -869,7 +869,7 @@ R3Triangulation.prototype.process_curve_input = function(C) {
                     new R2Point( s.vertex_locations[tv[2]][0], s.vertex_locations[tv[2]][1] ) ]
       var tei = R2_triangle_intersection(current_point, R2_tv, end_point);
       var ste = s.triangle_edges[current_triangle][tei[0]];
-      //console.log('Got ste', ste, 'as intersection', tei, 'in triangle edges', s.triangle_edges[current_triangle]);
+      console.log('Got ste', ste, 'as intersection', tei, 'in triangle edges', s.triangle_edges[current_triangle]);
       var e_sign = (ste > 0 ? 1 : -1);
       var e_ind = e_sign*ste-1;
       var next_triangle = s.edges[e_ind][ (e_sign>0 ? 4 : 2) ]; //Note if sign is >0 then we need to look on the OTHER side
